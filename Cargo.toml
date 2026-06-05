@@ -1,0 +1,13 @@
+[workspace]
+resolver = "3"
+members = ["wasmtime-wasi-crypto", "wasmtime-host"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread"] }
+tracing-subscriber = "0.3.23"
+wasmtime = "45.0.0"
+wasmtime-wasi = "45.0.0"

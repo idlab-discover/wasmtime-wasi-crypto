@@ -1,0 +1,6 @@
+[package]
+name = "wasmtime-wasi-crypto"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
