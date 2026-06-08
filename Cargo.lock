@@ -2188,6 +2188,10 @@ dependencies = [
 [[package]]
 name = "wasmtime-wasi-crypto"
 version = "0.1.0"
+dependencies = [
+ "wasmtime",
+ "wasmtime-wasi",
+]
 
 [[package]]
 name = "wasmtime-wasi-io"
