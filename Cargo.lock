@@ -1980,6 +1980,7 @@ dependencies = [
  "tracing-subscriber",
  "wasmtime",
  "wasmtime-wasi",
+ "wasmtime-wasi-crypto",
 ]
 
 [[package]]
