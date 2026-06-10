@@ -32,18 +32,22 @@ impl WasiCryptoView for HostState {
 async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt::init();
 
-    // https://docs.wasmtime.dev/api/wasmtime_wasi/p2/bindings/index.html
+    let args: Vec<String> = std::env::args().collect();
+    let component_path = args
+        .get(1)
+        .expect("Usage: wasmtime-host <component.wasm> [args...]");
+    let wasi_args: Vec<&str> = args[2..].iter().map(String::as_str).collect();
+
     let engine = Engine::default();
     let mut linker: Linker<HostState> = Linker::new(&engine);
     wasmtime_wasi::p2::add_to_linker_async(&mut linker)?;
     wasmtime_wasi_crypto::crypto::add_to_linker(&mut linker)?;
 
-    // https://docs.wasmtime.dev/api/wasmtime_wasi/p2/bindings/struct.Command.html
     let mut wasi_ctx_builder = WasiCtxBuilder::new();
     wasi_ctx_builder
         .inherit_stdio()
         .inherit_env()
-        .inherit_args();
+        .args(&wasi_args); // forward test filter args so `cargo test mytest` works
 
     let state = HostState {
         table: ResourceTable::new(),
@@ -52,10 +56,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let mut store = Store::new(&engine, state);
-
-    let component = "temp";
-    let component =
-        Component::from_file(&engine, component).context("Failed to load WebAssembly component")?;
+    let component = Component::from_file(&engine, component_path)
+        .context("Failed to load WebAssembly component")?;
 
     let command = Command::instantiate_async(&mut store, &component, &linker).await?;
     let _ = command.wasi_cli_run().call_run(&mut store).await?;
