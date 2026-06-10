@@ -1,66 +1,50 @@
+mod host;
+mod runner;
+use clap::{Parser, Subcommand};
 use std::error::Error;
-use wasmtime::{Engine, Store, component::Component, component::Linker, error::Context};
-use wasmtime_wasi::p2::bindings::Command;
-use wasmtime_wasi::{ResourceTable, WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
-use wasmtime_wasi_crypto::crypto::{WasiCryptoCtx, WasiCryptoView};
 
-struct HostState {
-    table: ResourceTable,
-    wasi_ctx: WasiCtx,
-    crypto_ctx: WasiCryptoCtx,
+#[derive(Parser)]
+#[command(about = "wasmtime host with wasi-crypto support")]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
 }
 
-impl WasiView for HostState {
-    fn ctx(&mut self) -> WasiCtxView<'_> {
-        WasiCtxView {
-            ctx: &mut self.wasi_ctx,
-            table: &mut self.table,
-        }
-    }
-}
+#[derive(Subcommand)]
+enum Commands {
+    /// Run a wasm component directly
+    Run {
+        /// Path to the .wasm component
+        component: std::path::PathBuf,
 
-impl WasiCryptoView for HostState {
-    fn crypto(&mut self) -> wasmtime_wasi_crypto::crypto::WasiCryptoCtxView<'_> {
-        wasmtime_wasi_crypto::crypto::WasiCryptoCtxView {
-            ctx: &mut self.crypto_ctx,
-            table: &mut self.table,
-        }
-    }
+        /// Arguments forwarded to the component as WASI argv
+        #[arg(last = true)]
+        args: Vec<String>,
+    },
+
+    /// Run all tests in a wasm test binary, each in an isolated instance
+    Test {
+        /// Path to the .wasm test binary
+        component: std::path::PathBuf,
+    },
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt::init();
 
-    let args: Vec<String> = std::env::args().collect();
-    let component_path = args
-        .get(1)
-        .expect("Usage: wasmtime-host <component.wasm> [args...]");
-    let wasi_args: Vec<&str> = args[2..].iter().map(String::as_str).collect();
+    let cli = Cli::parse();
 
-    let engine = Engine::default();
-    let mut linker: Linker<HostState> = Linker::new(&engine);
-    wasmtime_wasi::p2::add_to_linker_async(&mut linker)?;
-    wasmtime_wasi_crypto::crypto::add_to_linker(&mut linker)?;
+    match cli.command {
+        Commands::Run { component, args } => {
+            let wasi_args: Vec<&str> = args.iter().map(String::as_str).collect();
+            host::run_component(&component, &wasi_args).await?;
+        }
 
-    let mut wasi_ctx_builder = WasiCtxBuilder::new();
-    wasi_ctx_builder
-        .inherit_stdio()
-        .inherit_env()
-        .args(&wasi_args); // forward test filter args so `cargo test mytest` works
-
-    let state = HostState {
-        table: ResourceTable::new(),
-        wasi_ctx: wasi_ctx_builder.build(),
-        crypto_ctx: WasiCryptoCtx::default(),
-    };
-
-    let mut store = Store::new(&engine, state);
-    let component = Component::from_file(&engine, component_path)
-        .context("Failed to load WebAssembly component")?;
-
-    let command = Command::instantiate_async(&mut store, &component, &linker).await?;
-    let _ = command.wasi_cli_run().call_run(&mut store).await?;
+        Commands::Test { component } => {
+            runner::run_each(&component).await?;
+        }
+    }
 
     Ok(())
 }
