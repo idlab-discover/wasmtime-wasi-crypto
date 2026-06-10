@@ -26,6 +26,10 @@ enum Commands {
     Test {
         /// Path to the .wasm test binary
         component: std::path::PathBuf,
+
+        /// Arguments forwarded to the test runner (e.g., filters, --ignored)
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
     },
 }
 
@@ -41,8 +45,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             host::run_component(&component, &wasi_args).await?;
         }
 
-        Commands::Test { component } => {
-            runner::run_each(&component).await?;
+        Commands::Test { component, args } => {
+            runner::run_each(&component, args).await?;
         }
     }
 

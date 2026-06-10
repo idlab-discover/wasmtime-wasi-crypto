@@ -1,4 +1,4 @@
 [target.wasm32-wasip2]
 # Cargo shifts its working directory into test-components/... when running tests there
 # TODO: This is a hacky way of working around that
-runner = "cargo run --manifest-path ../../wasmtime-host/Cargo.toml --"
+runner = "cargo run --manifest-path ../../wasmtime-host/Cargo.toml -- test"

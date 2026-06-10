@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 clap.workspace = true
+libtest-mimic = "0.8.2"
 tokio.workspace = true
 tracing-subscriber.workspace = true
 wasmtime.workspace = true
