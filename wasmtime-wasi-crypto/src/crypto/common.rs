@@ -1,4 +1,7 @@
-use crate::crypto::bindings::wasi::crypto::wasi_ephemeral_crypto_common::*;
+use crate::{
+    crypto::bindings::wasi::crypto::wasi_ephemeral_crypto_common::*, key_exchange::KxOptions,
+    signatures::SignatureOptions, symmetric::SymmetricOptions,
+};
 
 impl HostSymmetricTag for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<SymmetricTag>) -> wasmtime::Result<()> {
@@ -80,7 +83,18 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         algorithm_type: AlgorithmType,
     ) -> Result<wasmtime::component::Resource<Options>, CryptoErrno> {
-        todo!()
+        let options = match algorithm_type {
+            AlgorithmType::Signatures => Options::Signatures(SignatureOptions::default()),
+            AlgorithmType::Symmetric => Options::Symmetric(SymmetricOptions::default()),
+            AlgorithmType::KeyExchange => Options::KeyExchange(KxOptions::default()),
+        };
+
+        let handle = self
+            .table
+            .push(options)
+            .map_err(|_| CryptoErrno::InternalError)?;
+
+        Ok(handle)
     }
 
     #[doc = "/ Destroy an options object."]
@@ -88,7 +102,12 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         options: wasmtime::component::Resource<Options>,
     ) -> Result<(), CryptoErrno> {
-        todo!()
+        debug_assert!(options.owned());
+        let _options: Options = self
+            .table
+            .delete(options)
+            .map_err(|_| CryptoErrno::InternalError)?;
+        Ok(())
     }
 
     #[doc = "/ Set or update an option."]
@@ -102,7 +121,11 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         name: wasmtime::component::__internal::String,
         value: wasmtime::component::__internal::Vec<u8>,
     ) -> Result<(), CryptoErrno> {
-        todo!()
+        let options = self
+            .table
+            .get_mut(&options)
+            .map_err(|_| CryptoErrno::InternalError)?;
+        options.set(&name, &value)
     }
 
     #[doc = "/ Set or update an integer option."]
@@ -116,7 +139,11 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         name: wasmtime::component::__internal::String,
         value: u64,
     ) -> Result<(), CryptoErrno> {
-        todo!()
+        let options = self
+            .table
+            .get_mut(&options)
+            .map_err(|_| CryptoErrno::InternalError)?;
+        options.set_u64(&name, value)
     }
 
     #[doc = "/ Set or update buffer that the host can use or return data into."]
@@ -133,7 +160,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         name: wasmtime::component::__internal::String,
         buffer: wasmtime::component::__internal::Vec<u8>,
     ) -> Result<(), CryptoErrno> {
-        todo!()
+        self.options_set(options, name, buffer)
     }
 
     #[doc = "/ Return the length of an `array_output` object."]

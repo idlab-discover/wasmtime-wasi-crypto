@@ -1,5 +1,5 @@
 mod asymmetric_common;
-mod bindings;
+pub mod bindings;
 mod common;
 mod external_secrets;
 mod key_exchange;
