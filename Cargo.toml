@@ -3,7 +3,7 @@ resolver = "3"
 members = [
   "wasmtime-wasi-crypto",
   "wasmtime-host",
-  "test-components/wasi-crypto-common",
+  "test-components/wasi-crypto-common", "test-components/wasi-crypto-symmetric",
 ]
 
 default-members = ["wasmtime-wasi-crypto", "wasmtime-host"]
@@ -14,6 +14,7 @@ edition = "2024"
 
 [workspace.dependencies]
 anyhow = "1.0.102"
+clap = { version = "4.6.1", features = ["derive"] }
 tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread"] }
 tracing-subscriber = "0.3.23"
 wasmtime = "45.0.1"

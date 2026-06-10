@@ -205,7 +205,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         options: Option<wasmtime::component::Resource<Options>>,
     ) -> Result<wasmtime::component::Resource<SecretsManager>, CryptoErrno> {
-        todo!()
+        Err(CryptoErrno::UnsupportedFeature)
     }
 
     #[doc = "/ __(optional)__"]
@@ -217,7 +217,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
     ) -> Result<(), CryptoErrno> {
-        todo!()
+        Err(CryptoErrno::UnsupportedFeature)
     }
 
     #[doc = "/ __(optional)__"]
@@ -236,6 +236,6 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         key_id: KeyId,
         key_version: Version,
     ) -> Result<(), CryptoErrno> {
-        todo!()
+        Err(CryptoErrno::UnsupportedFeature)
     }
 }

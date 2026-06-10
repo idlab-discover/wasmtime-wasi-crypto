@@ -12,7 +12,6 @@ wit_bindgen::generate!({
     },
 });
 
-
 #[cfg(test)]
 mod tests {
     use crate::wasi::crypto::wasi_ephemeral_crypto_common::*;
@@ -64,5 +63,36 @@ mod tests {
             Err(e) => panic!("unexpected error: {e:?}"),
         }
         options_close(opts).unwrap();
+    }
+
+    #[test]
+    #[should_panic] // TODO: this is the same as the WITX version, but should probably be implemented down the line
+    fn secrets_manager_open_close() {
+        let sm = secrets_manager_open(None).unwrap();
+        secrets_manager_close(sm).unwrap();
+    }
+
+    #[test]
+    #[should_panic] // TODO: this is the same as the WITX version, but should probably be implemented down the line
+    fn secrets_manager_invalidate_not_found() {
+        let sm = secrets_manager_open(None).unwrap();
+        match secrets_manager_invalidate(&sm, &[], Version::Latest) {
+            Err(CryptoErrno::NotFound) => {}
+            Ok(()) => panic!("invalidating nonexistent key should return not-found"),
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+        secrets_manager_close(sm).unwrap();
+    }
+
+    #[test]
+    #[should_panic] // TODO: this is the same as the WITX version, but should probably be implemented down the line
+    fn secrets_manager_invalidate_all_versions_not_found() {
+        let sm = secrets_manager_open(None).unwrap();
+        match secrets_manager_invalidate(&sm, &[], Version::All) {
+            Err(CryptoErrno::NotFound) => {}
+            Ok(()) => panic!("invalidating nonexistent key should return not-found"),
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+        secrets_manager_close(sm).unwrap();
     }
 }
