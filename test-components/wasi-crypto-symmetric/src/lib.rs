@@ -1,6 +1,6 @@
 wit_bindgen::generate!({
-    world: "bindings",
-    path: "../wit",
+    world: "imports",
+    path: "../../spec/wit",
     with: {
         "wasi:crypto/wasi-ephemeral-crypto-asymmetric-common@0.11.0": generate,
         "wasi:crypto/wasi-ephemeral-crypto-common@0.11.0": generate,
