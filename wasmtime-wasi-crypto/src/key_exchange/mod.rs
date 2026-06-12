@@ -1,5 +1,5 @@
 use crate::{
-    crypto::bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno, options::OptionsLike,
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno, options::OptionsLike,
 };
 use std::{
     any::Any,

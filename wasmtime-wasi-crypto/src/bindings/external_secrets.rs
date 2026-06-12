@@ -1,9 +1,7 @@
-use crate::crypto::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
+use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
     ArrayOutput, CryptoErrno, SecretsManager, Timestamp, Version,
 };
-use crate::crypto::bindings::wasi::crypto::wasi_ephemeral_crypto_external_secrets::{
-    Host, SecretId,
-};
+use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_external_secrets::{Host, SecretId};
 
 impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     #[doc = "/ Store an external secret into the secrets manager."]

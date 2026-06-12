@@ -1,5 +1,5 @@
-use crate::crypto::bindings::wasi::crypto::wasi_ephemeral_crypto_asymmetric_common::{Host, KpId};
-use crate::crypto::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
+use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_asymmetric_common::{Host, KpId};
+use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
     AlgorithmType, ArrayOutput, CryptoErrno, Keypair, KeypairEncoding, Options, Publickey,
     PublickeyEncoding, Secretkey, SecretkeyEncoding, SecretsManager, Version,
 };

@@ -1,6 +1,6 @@
-use crate::crypto::bindings::wasi::crypto::wasi_ephemeral_crypto_kx::Host;
+use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_kx::Host;
 
-use crate::crypto::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
+use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
     ArrayOutput, CryptoErrno, Publickey, Secretkey,
 };
 

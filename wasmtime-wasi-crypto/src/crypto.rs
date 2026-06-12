@@ -1,11 +1,4 @@
-mod asymmetric_common;
-pub mod bindings;
-mod common;
-mod external_secrets;
-mod key_exchange;
-mod signatures;
-mod symmetric;
-use crate::limits::Limits;
+use crate::{bindings, limits::Limits};
 use wasmtime::component::{HasData, Linker};
 use wasmtime_wasi::ResourceTable;
 

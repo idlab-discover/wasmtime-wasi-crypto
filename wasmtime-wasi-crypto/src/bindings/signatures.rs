@@ -1,8 +1,8 @@
-use crate::crypto::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
+use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
     ArrayOutput, CryptoErrno, Signature, SignatureEncoding, SignatureState,
     SignatureVerificationState,
 };
-use crate::crypto::bindings::wasi::crypto::wasi_ephemeral_crypto_signatures::{
+use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_signatures::{
     Host, SignatureKeypair, SignaturePublickey,
 };
 

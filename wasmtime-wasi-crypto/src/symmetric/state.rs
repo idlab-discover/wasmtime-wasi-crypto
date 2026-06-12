@@ -1,5 +1,5 @@
 use crate::{
-    crypto::bindings::wasi::crypto::{
+    bindings::wasi::crypto::{
         wasi_ephemeral_crypto_common::{CryptoErrno, SymmetricTag},
         wasi_ephemeral_crypto_symmetric::SymmetricKey,
     },

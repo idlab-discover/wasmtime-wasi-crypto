@@ -1,5 +1,5 @@
 use crate::{
-    crypto::bindings::wasi::crypto::wasi_ephemeral_crypto_common::*, key_exchange::KxOptions,
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::*, key_exchange::KxOptions,
     signatures::SignatureOptions, symmetric::SymmetricOptions,
 };
 

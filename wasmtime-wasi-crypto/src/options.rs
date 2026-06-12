@@ -1,6 +1,6 @@
 use crate::{
-    crypto::bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
-    key_exchange::KxOptions, signatures::SignatureOptions, symmetric::SymmetricOptions,
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno, key_exchange::KxOptions,
+    signatures::SignatureOptions, symmetric::SymmetricOptions,
 };
 use std::any::Any;
 

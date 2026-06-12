@@ -1,4 +1,4 @@
-use crate::crypto::bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno;
+use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno;
 use std::io::Cursor;
 use wasmtime_wasi::ResourceTable;
 

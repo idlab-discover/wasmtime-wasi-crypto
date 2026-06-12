@@ -1,8 +1,8 @@
-use crate::crypto::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
+use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
     ArrayOutput, CryptoErrno, Options, SecretsManager, Size, SymmetricKey, SymmetricState,
     SymmetricTag, U64, Version,
 };
-use crate::crypto::bindings::wasi::crypto::wasi_ephemeral_crypto_symmetric::{Host, StoredKeyId};
+use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_symmetric::{Host, StoredKeyId};
 
 impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     #[doc = "/ Generate a new symmetric key for a given algorithm."]

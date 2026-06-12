@@ -1,3 +1,9 @@
+mod asymmetric_common;
+mod common;
+mod external_secrets;
+mod key_exchange;
+mod signatures;
+mod symmetric;
 wasmtime::component::bindgen!(
     {
     world: "imports",

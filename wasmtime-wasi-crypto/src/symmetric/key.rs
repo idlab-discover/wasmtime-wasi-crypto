@@ -1,5 +1,5 @@
 use crate::{
-    crypto::bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
     symmetric::{SymmetricAlgorithm, SymmetricOptions},
 };
 use std::{
