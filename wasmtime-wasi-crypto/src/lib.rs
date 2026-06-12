@@ -1,6 +1,7 @@
 pub mod array_output;
 pub mod bindings;
 pub mod crypto;
+pub mod error;
 pub mod key_exchange;
 pub mod limits;
 pub mod options;

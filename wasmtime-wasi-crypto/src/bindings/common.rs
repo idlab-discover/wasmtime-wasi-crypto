@@ -89,10 +89,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
             AlgorithmType::KeyExchange => Options::KeyExchange(KxOptions::default()),
         };
 
-        let handle = self
-            .table
-            .push(options)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let handle = self.table.push(options)?;
 
         Ok(handle)
     }
@@ -103,10 +100,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         options: wasmtime::component::Resource<Options>,
     ) -> Result<(), CryptoErrno> {
         debug_assert!(options.owned());
-        let _options: Options = self
-            .table
-            .delete(options)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let _options: Options = self.table.delete(options)?;
         Ok(())
     }
 
@@ -121,10 +115,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         name: wasmtime::component::__internal::String,
         value: wasmtime::component::__internal::Vec<u8>,
     ) -> Result<(), CryptoErrno> {
-        let options = self
-            .table
-            .get_mut(&options)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let options = self.table.get_mut(&options)?;
         options.set(&name, &value)
     }
 
@@ -139,10 +130,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         name: wasmtime::component::__internal::String,
         value: u64,
     ) -> Result<(), CryptoErrno> {
-        let options = self
-            .table
-            .get_mut(&options)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let options = self.table.get_mut(&options)?;
         options.set_u64(&name, value)
     }
 

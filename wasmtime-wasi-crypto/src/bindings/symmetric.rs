@@ -18,20 +18,15 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         let options = match options {
             Some(options_handle) => Some(
                 self.table
-                    .get(&options_handle)
-                    .map_err(|_| CryptoErrno::InvalidHandle)?
+                    .get(&options_handle)?
                     .clone() // TODO: investigate if this is necessary/valid
-                    .into_symmetric()
-                    .map_err(|_| CryptoErrno::InvalidHandle)?,
+                    .into_symmetric()?,
             ),
             None => None,
         };
 
         let symmetric_key = SymmetricKey::generate(&algorithm, options)?;
-        let handle = self
-            .table
-            .push(symmetric_key)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let handle = self.table.push(symmetric_key)?;
         Ok(handle)
     }
 
@@ -46,10 +41,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         raw: wasmtime::component::__internal::Vec<u8>,
     ) -> Result<wasmtime::component::Resource<SymmetricKey>, CryptoErrno> {
         let symmetric_key = SymmetricKey::import(&algorithm, &raw)?;
-        let handle = self
-            .table
-            .push(symmetric_key)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let handle = self.table.push(symmetric_key)?;
         Ok(handle)
     }
 
@@ -62,10 +54,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         symmetric_key: wasmtime::component::Resource<SymmetricKey>,
     ) -> Result<wasmtime::component::Resource<ArrayOutput>, CryptoErrno> {
-        let symmetric_key = self
-            .table
-            .get(&symmetric_key)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let symmetric_key = self.table.get(&symmetric_key)?;
 
         let raw = symmetric_key.inner().as_raw()?.to_vec();
 
@@ -81,10 +70,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         symmetric_key: wasmtime::component::Resource<SymmetricKey>,
     ) -> Result<(), CryptoErrno> {
         debug_assert!(symmetric_key.owned());
-        let _options: SymmetricKey = self
-            .table
-            .delete(symmetric_key)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let _options: SymmetricKey = self.table.delete(symmetric_key)?;
         Ok(())
     }
 
@@ -367,27 +353,19 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     ) -> Result<wasmtime::component::Resource<SymmetricState>, CryptoErrno> {
         let key = match key {
             None => None,
-            Some(symmetric_key_handle) => Some(
-                self.table
-                    .get(&symmetric_key_handle)
-                    .map_err(|_| CryptoErrno::InvalidHandle)?,
-            ),
+            Some(symmetric_key_handle) => Some(self.table.get(&symmetric_key_handle)?),
         };
         let options = match options {
             None => None,
             Some(options_handle) => Some(
                 self.table
-                    .get(&options_handle)
-                    .map_err(|_| CryptoErrno::InvalidHandle)?
+                    .get(&options_handle)?
                     .clone() // TODO: investigate if this is necessary/valid
                     .into_symmetric()?,
             ),
         };
         let symmetric_state = SymmetricState::open(&algorithm, key, options.as_ref(), self.limits)?;
-        let handle = self
-            .table
-            .push(symmetric_state)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let handle = self.table.push(symmetric_state)?;
         Ok(handle)
     }
 
@@ -403,10 +381,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         state: wasmtime::component::Resource<SymmetricState>,
         name: wasmtime::component::__internal::String,
     ) -> Result<Vec<u8>, CryptoErrno> {
-        let symmetric_state = self
-            .table
-            .get(&state)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let symmetric_state = self.table.get(&state)?;
         let v = symmetric_state.inner().options_get(&name)?;
         // if v_len > value.len() {
         //     return Err(CryptoErrno::Overflow);
@@ -424,10 +399,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         state: wasmtime::component::Resource<SymmetricState>,
         name: wasmtime::component::__internal::String,
     ) -> Result<U64, CryptoErrno> {
-        let symmetric_state = self
-            .table
-            .get(&state)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let symmetric_state = self.table.get(&state)?;
         let v = symmetric_state.inner().options_get_u64(&name)?;
         Ok(v)
     }
@@ -439,15 +411,9 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         state: wasmtime::component::Resource<SymmetricState>,
     ) -> Result<wasmtime::component::Resource<SymmetricState>, CryptoErrno> {
-        let symmetric_state = self
-            .table
-            .get(&state)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let symmetric_state = self.table.get(&state)?;
         let symmetric_state = symmetric_state.clone();
-        let handle = self
-            .table
-            .push(symmetric_state)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let handle = self.table.push(symmetric_state)?;
         Ok(handle)
     }
 
@@ -459,10 +425,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         state: wasmtime::component::Resource<SymmetricState>,
     ) -> Result<(), CryptoErrno> {
         debug_assert!(state.owned());
-        let _state: SymmetricState = self
-            .table
-            .delete(state)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let _state: SymmetricState = self.table.delete(state)?;
         Ok(())
     }
 
@@ -483,10 +446,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         state: wasmtime::component::Resource<SymmetricState>,
         data: wasmtime::component::__internal::Vec<u8>,
     ) -> Result<(), CryptoErrno> {
-        let symmetric_state = self
-            .table
-            .get(&state)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let symmetric_state = self.table.get(&state)?;
         symmetric_state.locked(|mut state| state.absorb_unchecked(&data))
     }
 
@@ -505,10 +465,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         state: wasmtime::component::Resource<SymmetricState>,
     ) -> Result<wasmtime::component::__internal::Vec<u8>, CryptoErrno> {
-        let symmetric_state = self
-            .table
-            .get(&state)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let symmetric_state = self.table.get(&state)?;
         symmetric_state.locked(|mut state| state.squeeze_unchecked())
     }
 
@@ -526,15 +483,9 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         state: wasmtime::component::Resource<SymmetricState>,
     ) -> Result<wasmtime::component::Resource<SymmetricTag>, CryptoErrno> {
-        let symmetric_state = self
-            .table
-            .get(&state)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let symmetric_state = self.table.get(&state)?;
         let tag = symmetric_state.locked(|mut state| state.squeeze_tag())?;
-        let handle = self
-            .table
-            .push(tag)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let handle = self.table.push(tag)?;
         Ok(handle)
     }
 
@@ -549,15 +500,9 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         state: wasmtime::component::Resource<SymmetricState>,
         alg_str: wasmtime::component::__internal::String,
     ) -> Result<wasmtime::component::Resource<SymmetricKey>, CryptoErrno> {
-        let symmetric_state = self
-            .table
-            .get(&state)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let symmetric_state = self.table.get(&state)?;
         let tag = symmetric_state.locked(|mut state| state.squeeze_key(&alg_str))?;
-        let handle = self
-            .table
-            .push(tag)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let handle = self.table.push(tag)?;
         Ok(handle)
     }
 
@@ -574,10 +519,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         state: wasmtime::component::Resource<SymmetricState>,
     ) -> Result<Size, CryptoErrno> {
-        let symmetric_state = self
-            .table
-            .get(&state)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let symmetric_state = self.table.get(&state)?;
         let max_tag_len = symmetric_state.inner().max_tag_len()?;
         Ok(max_tag_len as u32)
     }
@@ -596,10 +538,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         state: wasmtime::component::Resource<SymmetricState>,
         data: wasmtime::component::__internal::Vec<u8>,
     ) -> Result<wasmtime::component::__internal::Vec<u8>, CryptoErrno> {
-        let symmetric_state = self
-            .table
-            .get(&state)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let symmetric_state = self.table.get(&state)?;
         symmetric_state.locked(|mut state| state.encrypt(&data))
     }
 
@@ -623,15 +562,9 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         ),
         CryptoErrno,
     > {
-        let symmetric_state = self
-            .table
-            .get(&state)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let symmetric_state = self.table.get(&state)?;
         let (out, symmetric_tag) = symmetric_state.inner().encrypt_detached(&data)?;
-        let handle = self
-            .table
-            .push(symmetric_tag)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let handle = self.table.push(symmetric_tag)?;
         Ok((out, handle))
     }
 
@@ -649,10 +582,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         state: wasmtime::component::Resource<SymmetricState>,
         data: wasmtime::component::__internal::Vec<u8>,
     ) -> Result<wasmtime::component::__internal::Vec<u8>, CryptoErrno> {
-        let symmetric_state = self
-            .table
-            .get(&state)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let symmetric_state = self.table.get(&state)?;
         symmetric_state.locked(|mut state| state.decrypt(&data))
     }
 
@@ -673,10 +603,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         data: wasmtime::component::__internal::Vec<u8>,
         raw_tag: wasmtime::component::__internal::Vec<u8>,
     ) -> Result<wasmtime::component::__internal::Vec<u8>, CryptoErrno> {
-        let symmetric_state = self
-            .table
-            .get(&state)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let symmetric_state = self.table.get(&state)?;
         symmetric_state.locked(|mut state| state.decrypt_detached(&data, &raw_tag))
     }
 
@@ -689,10 +616,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         state: wasmtime::component::Resource<SymmetricState>,
     ) -> Result<(), CryptoErrno> {
-        let symmetric_state = self
-            .table
-            .get(&state)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let symmetric_state = self.table.get(&state)?;
         symmetric_state.locked(|mut state| state.ratchet())
     }
 
@@ -703,10 +627,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         symmetric_tag: wasmtime::component::Resource<SymmetricTag>,
     ) -> Result<Size, CryptoErrno> {
-        let symmetric_tag = self
-            .table
-            .get(&symmetric_tag)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let symmetric_tag = self.table.get(&symmetric_tag)?;
         Ok(symmetric_tag.as_ref().len() as u32)
     }
 
@@ -724,19 +645,13 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         symmetric_tag: wasmtime::component::Resource<SymmetricTag>,
     ) -> Result<wasmtime::component::__internal::Vec<u8>, CryptoErrno> {
         let symmetric_tag_handle = symmetric_tag;
-        let symmetric_tag = self
-            .table
-            .get(&symmetric_tag_handle)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let symmetric_tag = self.table.get(&symmetric_tag_handle)?;
         let out = symmetric_tag.as_ref().to_vec();
         // if !(raw_len <= buf_len) {
         //     return Err(CryptoErrno::Overflow);
         // };
         debug_assert!(symmetric_tag_handle.owned());
-        let _symmetric_tag: SymmetricTag = self
-            .table
-            .delete(symmetric_tag_handle)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let _symmetric_tag: SymmetricTag = self.table.delete(symmetric_tag_handle)?;
         Ok(out)
     }
 
@@ -760,10 +675,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         symmetric_tag: wasmtime::component::Resource<SymmetricTag>,
         expected_raw_tag: wasmtime::component::__internal::Vec<u8>,
     ) -> Result<(), CryptoErrno> {
-        let symmetric_tag = self
-            .table
-            .get(&symmetric_tag)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let symmetric_tag = self.table.get(&symmetric_tag)?;
         symmetric_tag.verify(&expected_raw_tag)
     }
 
@@ -777,10 +689,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         symmetric_tag: wasmtime::component::Resource<SymmetricTag>,
     ) -> Result<(), CryptoErrno> {
         debug_assert!(symmetric_tag.owned());
-        let _symmetric_tag: SymmetricTag = self
-            .table
-            .delete(symmetric_tag)
-            .map_err(|_| CryptoErrno::InvalidHandle)?;
+        let _symmetric_tag: SymmetricTag = self.table.delete(symmetric_tag)?;
         Ok(())
     }
 }
