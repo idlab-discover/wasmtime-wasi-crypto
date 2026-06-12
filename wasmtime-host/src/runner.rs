@@ -10,6 +10,7 @@ use wasmtime_wasi::p2::pipe::MemoryOutputPipe;
 use wasmtime_wasi_crypto::crypto::WasiCryptoCtx;
 
 use libtest_mimic::{Arguments, Failed, Trial};
+use wasmtime_wasi_crypto::limits::Limits;
 
 /// Retrieve the list of test names from a wasm test binary by running it
 /// with `-- --list`. Returns one test name per entry.
@@ -32,6 +33,7 @@ pub async fn list_tests(
             table: ResourceTable::new(),
             wasi_ctx,
             crypto_ctx: WasiCryptoCtx::default(),
+            limits: Limits::new(),
         },
     );
 
@@ -88,6 +90,7 @@ pub async fn run_each(component: &Path, test_args: Vec<String>) -> Result<(), Bo
                                 table: ResourceTable::new(),
                                 wasi_ctx,
                                 crypto_ctx: WasiCryptoCtx::default(),
+                                limits: Limits::new(),
                             },
                         );
 

@@ -336,10 +336,11 @@ mod tests {
     #[test]
     fn aead_auto_nonce_retrievable_via_options_get() {
         // Adapted from the "AEAD encryption with automatic nonce generation" doc example.
+        // AES-256-GCM-SIV uses a 12-byte nonce.
         let key = generate("AES-256-GCM-SIV");
         let state = symmetric_state_open("AES-256-GCM-SIV", Some(&key), None).unwrap();
-        let nonce = symmetric_state_options_get(&state, "nonce").unwrap();
-        assert!(!nonce.is_empty());
+        let nonce_buf = symmetric_state_options_get(&state, "nonce").unwrap();
+        assert_ne!(nonce_buf, vec![0u8; 12], "nonce should not be all zeros");
         symmetric_state_close(state).unwrap();
         symmetric_key_close(key).unwrap();
     }

@@ -5,6 +5,7 @@ mod external_secrets;
 mod key_exchange;
 mod signatures;
 mod symmetric;
+use crate::limits::Limits;
 use wasmtime::component::{HasData, Linker};
 use wasmtime_wasi::ResourceTable;
 
@@ -14,6 +15,7 @@ pub struct WasiCryptoCtx {}
 pub struct WasiCryptoCtxView<'a> {
     pub ctx: &'a mut WasiCryptoCtx,
     pub table: &'a mut ResourceTable,
+    pub limits: &'a mut Limits,
 }
 
 pub trait WasiCryptoView {

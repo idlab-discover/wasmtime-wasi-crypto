@@ -3,11 +3,13 @@ use wasmtime::{Engine, Store, component::Component, component::Linker, error::Co
 use wasmtime_wasi::p2::bindings::Command;
 use wasmtime_wasi::{ResourceTable, WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
 use wasmtime_wasi_crypto::crypto::{WasiCryptoCtx, WasiCryptoView};
+use wasmtime_wasi_crypto::limits::Limits;
 
 pub struct HostState {
     pub(crate) table: ResourceTable,
     pub(crate) wasi_ctx: WasiCtx,
     pub(crate) crypto_ctx: WasiCryptoCtx,
+    pub(crate) limits: Limits,
 }
 
 impl WasiView for HostState {
@@ -24,6 +26,7 @@ impl WasiCryptoView for HostState {
         wasmtime_wasi_crypto::crypto::WasiCryptoCtxView {
             ctx: &mut self.crypto_ctx,
             table: &mut self.table,
+            limits: &mut self.limits,
         }
     }
 }
@@ -50,6 +53,7 @@ pub fn make_store(engine: &Engine, wasi_args: &[&str]) -> Store<HostState> {
             table: ResourceTable::new(),
             wasi_ctx,
             crypto_ctx: WasiCryptoCtx::default(),
+            limits: Limits::new(),
         },
     )
 }
