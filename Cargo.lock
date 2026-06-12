@@ -2771,6 +2771,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasi-crypto-signatures"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen 0.58.0",
+]
+
+[[package]]
 name = "wasi-crypto-symmetric"
 version = "0.1.0"
 dependencies = [

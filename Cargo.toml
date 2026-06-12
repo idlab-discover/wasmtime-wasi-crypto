@@ -3,7 +3,7 @@ resolver = "3"
 members = [
   "wasmtime-wasi-crypto",
   "wasmtime-host",
-  "test-components/wasi-crypto-common", "test-components/wasi-crypto-symmetric",
+  "test-components/wasi-crypto-common", "test-components/wasi-crypto-symmetric", "test-components/wasi-crypto-signatures",
 ]
 
 default-members = ["wasmtime-wasi-crypto", "wasmtime-host"]
