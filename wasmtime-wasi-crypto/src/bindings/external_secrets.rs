@@ -18,7 +18,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         secret: wasmtime::component::__internal::Vec<u8>,
         expiration: Timestamp,
     ) -> Result<SecretId, CryptoErrno> {
-        todo!()
+        Err(CryptoErrno::UnsupportedFeature)
     }
 
     #[doc = "/ Replace a managed external secret with a new version."]
@@ -35,7 +35,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         secret: wasmtime::component::__internal::Vec<u8>,
         expiration: Timestamp,
     ) -> Result<(SecretId, Version), CryptoErrno> {
-        todo!()
+        Err(CryptoErrno::UnsupportedFeature)
     }
 
     #[doc = "/ Get a copy of an external secret given an identifier and version."]
@@ -51,7 +51,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         secret_id: SecretId,
         secret_version: Version,
     ) -> Result<wasmtime::component::Resource<ArrayOutput>, CryptoErrno> {
-        todo!()
+        Err(CryptoErrno::UnsupportedFeature)
     }
 
     #[doc = "/ Invalidate an external secret given an identifier and a version."]
@@ -67,7 +67,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         secret_id: SecretId,
         secret_version: Version,
     ) -> Result<(), CryptoErrno> {
-        todo!()
+        Err(CryptoErrno::UnsupportedFeature)
     }
 
     #[doc = "/ Encrypt an external secret."]
@@ -83,7 +83,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         secret: wasmtime::component::__internal::Vec<u8>,
         expiration: Timestamp,
     ) -> Result<wasmtime::component::Resource<ArrayOutput>, CryptoErrno> {
-        todo!()
+        Err(CryptoErrno::UnsupportedFeature)
     }
 
     #[doc = "/ Decrypt an external secret previously encrypted by the secrets manager."]
@@ -96,6 +96,6 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         encrypted_secret: wasmtime::component::__internal::Vec<u8>,
     ) -> Result<wasmtime::component::Resource<ArrayOutput>, CryptoErrno> {
-        todo!()
+        Err(CryptoErrno::UnsupportedFeature)
     }
 }
