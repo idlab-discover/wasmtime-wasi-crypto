@@ -29,7 +29,7 @@ pqcrypto-kyber = { version = "0.8.1", optional = true }
 rand_core = { version = "0.6.4", features = [
   "getrandom",
 ], package = "rand_core" }
-sha2 = "0.11.0"
+sha2 = "0.10.9"
 subtle = "2.6.1"
 xoodyak = "0.8.4"
 zeroize = { version = "1.8.2", features = ["derive"] }

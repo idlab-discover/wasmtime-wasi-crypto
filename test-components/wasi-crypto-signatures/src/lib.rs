@@ -48,8 +48,10 @@ mod tests {
     ) -> Vec<u8> {
         let state = signature_state_open(kp).unwrap();
         signature_state_update(&state, msg).unwrap();
-        let array_out = signature_state_sign(&state).unwrap();
+        let sig = signature_state_sign(&state).unwrap();
         signature_state_close(state).unwrap();
+        let array_out = signature_export(&sig, SignatureEncoding::Raw).unwrap();
+        signature_close(sig).unwrap();
         array_output_pull(&array_out).unwrap()
     }
 
@@ -107,10 +109,14 @@ mod tests {
         let state = signature_state_open(&kp).unwrap();
 
         signature_state_update(&state, b"message").unwrap();
-        let raw1 = array_output_pull(&signature_state_sign(&state).unwrap()).unwrap();
+        let sig1 = signature_state_sign(&state).unwrap();
+        let raw1 = array_output_pull(&signature_export(&sig1, SignatureEncoding::Raw).unwrap()).unwrap();
+        signature_close(sig1).unwrap();
 
         signature_state_update(&state, b"message").unwrap();
-        let raw2 = array_output_pull(&signature_state_sign(&state).unwrap()).unwrap();
+        let sig2 = signature_state_sign(&state).unwrap();
+        let raw2 = array_output_pull(&signature_export(&sig2, SignatureEncoding::Raw).unwrap()).unwrap();
+        signature_close(sig2).unwrap();
 
         // Both signatures must verify — Ed25519 is deterministic so they will
         // also be equal, but we assert correctness not determinism here.
@@ -133,7 +139,12 @@ mod tests {
         let state = signature_state_open(&kp).unwrap();
         signature_state_update(&state, b"message part 1").unwrap();
         signature_state_update(&state, b"message part 2").unwrap();
-        let raw_incremental = array_output_pull(&signature_state_sign(&state).unwrap()).unwrap();
+        let raw_incremental = {
+            let sig = signature_state_sign(&state).unwrap();
+            let bytes = array_output_pull(&signature_export(&sig, SignatureEncoding::Raw).unwrap()).unwrap();
+            signature_close(sig).unwrap();
+            bytes
+        };
         signature_state_close(state).unwrap();
 
         // Verify incremental signature against the concatenated message.

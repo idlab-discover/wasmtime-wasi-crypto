@@ -5,6 +5,7 @@ use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
 use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_signatures::{
     Host, SignatureKeypair, SignaturePublickey,
 };
+use crate::signatures::SignatureAlgorithm;
 
 impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     #[doc = "/ Export a signature."]
@@ -17,7 +18,10 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         signature: wasmtime::component::Resource<Signature>,
         encoding: SignatureEncoding,
     ) -> Result<wasmtime::component::Resource<ArrayOutput>, CryptoErrno> {
-        todo!()
+        let signature = self.table.get(&signature)?;
+        let data = signature.inner().as_ref().as_ref().to_vec();
+        let array_output_handle = ArrayOutput::register(self.table, data)?;
+        Ok(array_output_handle)
     }
 
     #[doc = "/ Create a signature object."]
@@ -39,7 +43,13 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         encoded: wasmtime::component::__internal::Vec<u8>,
         encoding: SignatureEncoding,
     ) -> Result<wasmtime::component::Resource<Signature>, CryptoErrno> {
-        todo!()
+        let alg = SignatureAlgorithm::try_from(algorithm.as_str())?;
+        let signature = match encoding {
+            SignatureEncoding::Raw => Signature::from_raw(alg, &encoded)?,
+            _ => return Err(CryptoErrno::UnsupportedEncoding),
+        };
+        let handle = self.table.push(signature)?;
+        Ok(handle)
     }
 
     #[doc = "/ Create a new state to collect data to compute a signature on."]
@@ -62,18 +72,19 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         kp: wasmtime::component::Resource<SignatureKeypair>,
     ) -> Result<wasmtime::component::Resource<SignatureState>, CryptoErrno> {
-        todo!()
+        SignatureState::open(self.table, kp)
     }
 
     #[doc = "/ Absorb data into the signature state."]
-    #[doc = "/ "]
     #[doc = "/ This function may return `unsupported_feature` if the selected algorithm doesn\'t support incremental updates."]
+    #[doc = "/ "]
     fn signature_state_update(
         &mut self,
         state: wasmtime::component::Resource<SignatureState>,
         input: wasmtime::component::__internal::Vec<u8>,
     ) -> Result<(), CryptoErrno> {
-        todo!()
+        let state = self.table.get(&state)?;
+        state.locked(|mut state| state.update(&input))
     }
 
     #[doc = "/ Compute a signature for all the data collected up to that point."]
@@ -82,8 +93,11 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn signature_state_sign(
         &mut self,
         state: wasmtime::component::Resource<SignatureState>,
-    ) -> Result<wasmtime::component::Resource<ArrayOutput>, CryptoErrno> {
-        todo!()
+    ) -> std::result::Result<wasmtime::component::Resource<Signature>, CryptoErrno> {
+        let state = self.table.get(&state)?;
+        let signature = state.locked(|mut state| state.sign())?;
+        let handle = self.table.push(signature)?;
+        Ok(handle)
     }
 
     #[doc = "/ Destroy a signature state."]
@@ -95,7 +109,9 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         state: wasmtime::component::Resource<SignatureState>,
     ) -> Result<(), CryptoErrno> {
-        todo!()
+        debug_assert!(state.owned());
+        let _state: SignatureState = self.table.delete(state)?;
+        Ok(())
     }
 
     #[doc = "/ Create a new state to collect data to verify a signature on."]
@@ -117,7 +133,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         kp: wasmtime::component::Resource<SignaturePublickey>,
     ) -> Result<wasmtime::component::Resource<SignatureVerificationState>, CryptoErrno> {
-        todo!()
+        SignatureVerificationState::open(self.table, kp)
     }
 
     #[doc = "/ Absorb data into the signature verification state."]
@@ -128,7 +144,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         state: wasmtime::component::Resource<SignatureVerificationState>,
         input: wasmtime::component::__internal::Vec<u8>,
     ) -> Result<(), CryptoErrno> {
-        todo!()
+        let state = self.table.get(&state)?;
+        state.locked(|mut state| state.update(&input))
     }
 
     #[doc = "/ Check that the given signature verifies for the data collected up to that point."]
@@ -141,7 +158,9 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         state: wasmtime::component::Resource<SignatureVerificationState>,
         signature: wasmtime::component::Resource<Signature>,
     ) -> Result<(), CryptoErrno> {
-        todo!()
+        let state = self.table.get(&state)?;
+        let signature = self.table.get(&signature)?;
+        state.locked(|state| state.verify(signature))
     }
 
     #[doc = "/ Destroy a signature verification state."]
@@ -153,7 +172,9 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         state: wasmtime::component::Resource<SignatureVerificationState>,
     ) -> Result<(), CryptoErrno> {
-        todo!()
+        debug_assert!(state.owned());
+        let _state: SignatureVerificationState = self.table.delete(state)?;
+        Ok(())
     }
 
     #[doc = "/ Destroy a signature."]
@@ -161,6 +182,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         signature: wasmtime::component::Resource<Signature>,
     ) -> Result<(), CryptoErrno> {
-        todo!()
+        debug_assert!(signature.owned());
+        let _signature: Signature = self.table.delete(signature)?;
+        Ok(())
     }
 }

@@ -29,6 +29,13 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         algorithm: wasmtime::component::__internal::String,
         options: Option<wasmtime::component::Resource<Options>>,
     ) -> Result<wasmtime::component::Resource<Keypair>, CryptoErrno> {
+        // let options = match options {
+        //     None => None,
+        //     Some(options_handle) => Some(self.table.get(&options_handle)?),
+        // };
+        // let kp = KeyPair::generate(alg_type, alg_str, options)?;
+        // let handle = self.handles.keypair.register(kp)?;
+        // Ok(handle)
         todo!()
     }
 
