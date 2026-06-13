@@ -51,7 +51,7 @@ impl SignaturePublicKey {
         Ok(raw_pk)
     }
 
-    pub(crate) fn verify(_pk: SignaturePublicKey) -> Result<(), CryptoErrno> {
+    pub(crate) fn verify(_pk: &SignaturePublicKey) -> Result<(), CryptoErrno> {
         Err(CryptoErrno::NotImplemented)
     }
 }

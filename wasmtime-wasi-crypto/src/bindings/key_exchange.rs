@@ -16,7 +16,10 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         pk: wasmtime::component::Resource<Publickey>,
         sk: wasmtime::component::Resource<Secretkey>,
     ) -> Result<wasmtime::component::Resource<ArrayOutput>, CryptoErrno> {
-        todo!()
+        let pk = self.table.get(&pk)?.clone().into_kx_public_key()?;
+        let sk = self.table.get(&sk)?.clone().into_kx_secret_key()?;
+        let shared_secret = sk.dh(&pk)?;
+        ArrayOutput::register(self.table, shared_secret)
     }
 
     #[doc = "/ Create a shared secret and encrypt it for the given public key."]
@@ -35,7 +38,12 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         ),
         CryptoErrno,
     > {
-        todo!()
+        let pk = self.table.get(&pk)?.clone().into_kx_public_key()?;
+        let encapsulated_secret = pk.encapsulate()?;
+        let secret_handle = ArrayOutput::register(self.table, encapsulated_secret.secret)?;
+        let encapsulated_secret_handle =
+            ArrayOutput::register(self.table, encapsulated_secret.encapsulated_secret)?;
+        Ok((secret_handle, encapsulated_secret_handle))
     }
 
     #[doc = "/ Decapsulate an encapsulated secret created with `kx_encapsulate`"]
@@ -46,6 +54,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         sk: wasmtime::component::Resource<Secretkey>,
         encapsulated_secret: wasmtime::component::__internal::Vec<u8>,
     ) -> Result<wasmtime::component::Resource<ArrayOutput>, CryptoErrno> {
-        todo!()
+        let sk = self.table.get(&sk)?.clone().into_kx_secret_key()?;
+        let shared_secret = sk.decapsulate(&encapsulated_secret)?;
+        ArrayOutput::register(self.table, shared_secret)
     }
 }

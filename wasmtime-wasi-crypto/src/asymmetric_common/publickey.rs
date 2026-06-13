@@ -1,7 +1,10 @@
 use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::{AlgorithmType, CryptoErrno},
+    key_exchange::publickey::KxPublicKey,
     signatures::{SignatureAlgorithm, publickey::SignaturePublicKey},
 };
+use wasmtime::component::Resource;
+use wasmtime_wasi::ResourceTable;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PublicKeyEncoding {
@@ -15,7 +18,7 @@ pub enum PublicKeyEncoding {
 #[derive(Clone)]
 pub enum PublicKey {
     Signature(SignaturePublicKey),
-    // KeyExchange(KxPublicKey),
+    KeyExchange(KxPublicKey),
 }
 
 impl PublicKey {
@@ -26,12 +29,12 @@ impl PublicKey {
         }
     }
 
-    // pub(crate) fn into_kx_public_key(self) -> Result<KxPublicKey, CryptoErrno> {
-    //     match self {
-    //         PublicKey::KeyExchange(pk) => Ok(pk),
-    //         _ => return Err(CryptoErrno::InvalidHandle),
-    //     }
-    // }
+    pub(crate) fn into_kx_public_key(self) -> Result<KxPublicKey, CryptoErrno> {
+        match self {
+            PublicKey::KeyExchange(pk) => Ok(pk),
+            _ => return Err(CryptoErrno::InvalidHandle),
+        }
+    }
 
     fn import(
         alg_type: AlgorithmType,
@@ -53,14 +56,14 @@ impl PublicKey {
     fn export(&self, encoding: PublicKeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
         match self {
             PublicKey::Signature(pk) => pk.export(encoding),
-            // PublicKey::KeyExchange(pk) => pk.export(encoding),
+            PublicKey::KeyExchange(pk) => pk.export(encoding),
         }
     }
 
-    // fn verify(handles: &HandleManagers, pk_handle: Handle) -> Result<(), CryptoErrno> {
-    //     match handles.publickey.get(pk_handle)? {
-    //         PublicKey::Signature(pk) => SignaturePublicKey::verify(pk),
-    //         PublicKey::KeyExchange(pk) => pk.verify(),
-    //     }
-    // }
+    fn verify(table: &mut ResourceTable, pk: Resource<PublicKey>) -> Result<(), CryptoErrno> {
+        match table.get(&pk)? {
+            PublicKey::Signature(pk) => SignaturePublicKey::verify(pk),
+            PublicKey::KeyExchange(pk) => pk.verify(),
+        }
+    }
 }
