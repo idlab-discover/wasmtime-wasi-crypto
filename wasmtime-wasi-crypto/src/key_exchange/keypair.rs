@@ -1,10 +1,10 @@
 use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::KeypairEncoding,
     key_exchange::{
         KxAlgorithm, KxOptions, dh::X25519KeyPairBuilder, publickey::KxPublicKey,
         secretkey::KxSecretKey,
     },
-    keypair::KeyPairEncoding,
 };
 use std::{
     any::Any,
@@ -65,9 +65,9 @@ impl KxKeyPair {
         builder.generate(options)
     }
 
-    pub(crate) fn export(&self, encoding: KeyPairEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub(crate) fn export(&self, encoding: KeypairEncoding) -> Result<Vec<u8>, CryptoErrno> {
         match encoding {
-            KeyPairEncoding::Raw => self.inner().as_raw(),
+            KeypairEncoding::Raw => self.inner().as_raw(),
             _ => return Err(CryptoErrno::UnsupportedEncoding),
         }
     }

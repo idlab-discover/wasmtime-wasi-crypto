@@ -1,6 +1,5 @@
 use crate::{
-    asymmetric_common::publickey::PublicKeyEncoding,
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::{CryptoErrno, PublickeyEncoding},
     key_exchange::{KxAlgorithm, kem::EncapsulatedSecret},
 };
 use std::{
@@ -43,9 +42,9 @@ impl KxPublicKey {
         Ok(self.inner().as_raw()?.to_vec())
     }
 
-    pub(crate) fn export(&self, encoding: PublicKeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub(crate) fn export(&self, encoding: PublickeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
         match encoding {
-            PublicKeyEncoding::Raw => Ok(self.inner().as_raw()?.to_vec()),
+            PublickeyEncoding::Raw => Ok(self.inner().as_raw()?.to_vec()),
             _ => return Err(CryptoErrno::UnsupportedEncoding),
         }
     }

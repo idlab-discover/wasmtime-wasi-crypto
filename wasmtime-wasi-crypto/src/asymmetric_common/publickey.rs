@@ -1,19 +1,12 @@
 use crate::{
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::{AlgorithmType, CryptoErrno},
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
+        AlgorithmType, CryptoErrno, PublickeyEncoding,
+    },
     key_exchange::publickey::KxPublicKey,
     signatures::{SignatureAlgorithm, publickey::SignaturePublicKey},
 };
 use wasmtime::component::Resource;
 use wasmtime_wasi::ResourceTable;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PublicKeyEncoding {
-    Raw,
-    Pkcs8,
-    Pem,
-    Sec,
-    Local,
-}
 
 #[derive(Clone)]
 pub enum PublicKey {
@@ -36,11 +29,11 @@ impl PublicKey {
         }
     }
 
-    fn import(
+    pub(crate) fn import(
         alg_type: AlgorithmType,
         alg_str: &str,
         encoded: &[u8],
-        encoding: PublicKeyEncoding,
+        encoding: PublickeyEncoding,
     ) -> Result<PublicKey, CryptoErrno> {
         match alg_type {
             AlgorithmType::Signatures => Ok(PublicKey::Signature(SignaturePublicKey::import(
@@ -53,14 +46,17 @@ impl PublicKey {
         }
     }
 
-    fn export(&self, encoding: PublicKeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub(crate) fn export(&self, encoding: PublickeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
         match self {
             PublicKey::Signature(pk) => pk.export(encoding),
             PublicKey::KeyExchange(pk) => pk.export(encoding),
         }
     }
 
-    fn verify(table: &mut ResourceTable, pk: Resource<PublicKey>) -> Result<(), CryptoErrno> {
+    pub(crate) fn verify(
+        table: &mut ResourceTable,
+        pk: Resource<PublicKey>,
+    ) -> Result<(), CryptoErrno> {
         match table.get(&pk)? {
             PublicKey::Signature(pk) => SignaturePublicKey::verify(pk),
             PublicKey::KeyExchange(pk) => pk.verify(),

@@ -5,9 +5,9 @@ use rkyv::rancor;
 use zeroize::Zeroize;
 
 use crate::{
-    asymmetric_common::publickey::PublicKeyEncoding,
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::{CryptoErrno, Signature},
-    keypair::KeyPairEncoding,
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
+        CryptoErrno, KeypairEncoding, PublickeyEncoding, Signature,
+    },
     signatures::{
         SignatureAlgorithm, SignatureAlgorithmFamily, SignatureOptions,
         signature::{SignatureLike, SignatureStateLike, SignatureVerificationStateLike},
@@ -149,16 +149,16 @@ impl RsaSignatureKeyPair {
     pub fn import(
         alg: SignatureAlgorithm,
         encoded: &[u8],
-        encoding: KeyPairEncoding,
+        encoding: KeypairEncoding,
     ) -> Result<Self, CryptoErrno> {
         match alg.family() {
             SignatureAlgorithmFamily::RSA => {}
             _ => return Err(CryptoErrno::UnsupportedAlgorithm),
         };
         let kp = match encoding {
-            KeyPairEncoding::Pkcs8 => Self::from_pkcs8(alg, encoded)?,
-            KeyPairEncoding::Pem => Self::from_pem(alg, encoded)?,
-            KeyPairEncoding::Local => Self::from_local(alg, encoded)?,
+            KeypairEncoding::Pkcs8 => Self::from_pkcs8(alg, encoded)?,
+            KeypairEncoding::Pem => Self::from_pem(alg, encoded)?,
+            KeypairEncoding::Local => Self::from_local(alg, encoded)?,
             _ => return Err(CryptoErrno::UnsupportedEncoding),
         };
         let modulus_size = kp.ctx.size();
@@ -170,11 +170,11 @@ impl RsaSignatureKeyPair {
         Ok(kp)
     }
 
-    pub fn export(&self, encoding: KeyPairEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub fn export(&self, encoding: KeypairEncoding) -> Result<Vec<u8>, CryptoErrno> {
         match encoding {
-            KeyPairEncoding::Pkcs8 => self.to_pkcs8(),
-            KeyPairEncoding::Pem => self.to_pem(),
-            KeyPairEncoding::Local => self.to_local(),
+            KeypairEncoding::Pkcs8 => self.to_pkcs8(),
+            KeypairEncoding::Pem => self.to_pem(),
+            KeypairEncoding::Local => self.to_local(),
             _ => return Err(CryptoErrno::UnsupportedEncoding),
         }
     }
@@ -414,12 +414,12 @@ impl RsaSignaturePublicKey {
     pub fn import(
         alg: SignatureAlgorithm,
         encoded: &[u8],
-        encoding: PublicKeyEncoding,
+        encoding: PublickeyEncoding,
     ) -> Result<Self, CryptoErrno> {
         let pk = match encoding {
-            PublicKeyEncoding::Pkcs8 => Self::from_pkcs8(alg, encoded)?,
-            PublicKeyEncoding::Pem => Self::from_pem(alg, encoded)?,
-            PublicKeyEncoding::Local => Self::from_local(alg, encoded)?,
+            PublickeyEncoding::Pkcs8 => Self::from_pkcs8(alg, encoded)?,
+            PublickeyEncoding::Pem => Self::from_pem(alg, encoded)?,
+            PublickeyEncoding::Local => Self::from_local(alg, encoded)?,
             _ => return Err(CryptoErrno::UnsupportedEncoding),
         };
         let modulus_size = pk.ctx.size();
@@ -430,11 +430,11 @@ impl RsaSignaturePublicKey {
         Ok(pk)
     }
 
-    pub fn export(&self, encoding: PublicKeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub fn export(&self, encoding: PublickeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
         match encoding {
-            PublicKeyEncoding::Pkcs8 => self.to_pkcs8(),
-            PublicKeyEncoding::Pem => self.to_pem(),
-            PublicKeyEncoding::Local => self.to_local(),
+            PublickeyEncoding::Pkcs8 => self.to_pkcs8(),
+            PublickeyEncoding::Pem => self.to_pem(),
+            PublickeyEncoding::Local => self.to_local(),
             _ => return Err(CryptoErrno::UnsupportedEncoding),
         }
     }

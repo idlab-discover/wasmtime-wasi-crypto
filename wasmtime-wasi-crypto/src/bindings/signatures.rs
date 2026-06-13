@@ -123,7 +123,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     #[doc = "/ Example usage - signature verification:"]
     #[doc = "/ "]
     #[doc = "/ ```rust"]
-    #[doc = "/ let pk_handle = ctx.publickey_import(AlgorithmType::Signatures, \"ECDSA_P256_SHA256\", encoded_pk, PublicKeyEncoding::Sec)?;"]
+    #[doc = "/ let pk_handle = ctx.publickey_import(AlgorithmType::Signatures, \"ECDSA_P256_SHA256\", encoded_pk, PublickeyEncoding::Sec)?;"]
     #[doc = "/ let signature_handle = ctx.signature_import(\"ECDSA_P256_SHA256\", encoded_sig, SignatureEncoding::Der)?;"]
     #[doc = "/ let state_handle = ctx.signature_verification_state_open(pk_handle)?;"]
     #[doc = "/ ctx.signature_verification_state_update(state_handle, \"message\")?;"]

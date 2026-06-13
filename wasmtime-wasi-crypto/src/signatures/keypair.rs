@@ -1,6 +1,6 @@
 use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
-    keypair::KeyPairEncoding,
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::KeypairEncoding,
     signatures::{
         SignatureAlgorithm, SignatureAlgorithmFamily, SignatureOptions,
         ecdsa::EcdsaSignatureKeyPair, eddsa::EddsaSignatureKeyPair, publickey::SignaturePublicKey,
@@ -17,7 +17,7 @@ pub enum SignatureKeyPair {
 }
 
 impl SignatureKeyPair {
-    pub(crate) fn export(&self, encoding: KeyPairEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub(crate) fn export(&self, encoding: KeypairEncoding) -> Result<Vec<u8>, CryptoErrno> {
         let encoded = match self {
             SignatureKeyPair::Ecdsa(kp) => kp.export(encoding)?,
             SignatureKeyPair::Eddsa(kp) => kp.export(encoding)?,
@@ -47,7 +47,7 @@ impl SignatureKeyPair {
     pub(crate) fn import(
         alg: SignatureAlgorithm,
         encoded: &[u8],
-        encoding: KeyPairEncoding,
+        encoding: KeypairEncoding,
     ) -> Result<SignatureKeyPair, CryptoErrno> {
         let kp = match alg.family() {
             SignatureAlgorithmFamily::ECDSA => {

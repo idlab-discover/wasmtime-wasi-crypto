@@ -1,6 +1,5 @@
 use crate::{
-    asymmetric_common::publickey::PublicKeyEncoding,
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::{CryptoErrno, PublickeyEncoding},
     signatures::{
         SignatureAlgorithm, SignatureAlgorithmFamily, ecdsa::EcdsaSignaturePublicKey,
         eddsa::EddsaSignaturePublicKey, rsa::RsaSignaturePublicKey,
@@ -26,7 +25,7 @@ impl SignaturePublicKey {
     pub(crate) fn import(
         alg: SignatureAlgorithm,
         encoded: &[u8],
-        encoding: PublicKeyEncoding,
+        encoding: PublickeyEncoding,
     ) -> Result<SignaturePublicKey, CryptoErrno> {
         let pk = match alg.family() {
             SignatureAlgorithmFamily::ECDSA => {
@@ -42,7 +41,7 @@ impl SignaturePublicKey {
         Ok(pk)
     }
 
-    pub(crate) fn export(&self, encoding: PublicKeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub(crate) fn export(&self, encoding: PublickeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
         let raw_pk = match self {
             SignaturePublicKey::Ecdsa(pk) => pk.export(encoding)?,
             SignaturePublicKey::Eddsa(pk) => pk.export(encoding)?,

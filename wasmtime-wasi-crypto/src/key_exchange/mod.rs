@@ -1,6 +1,6 @@
 mod dh;
 mod kem;
-mod keypair;
+pub mod keypair;
 pub mod publickey;
 pub mod secretkey;
 

@@ -1,7 +1,7 @@
 use crate::{
-    asymmetric_common::publickey::PublicKeyEncoding,
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
-    keypair::KeyPairEncoding,
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
+        CryptoErrno, KeypairEncoding, PublickeyEncoding,
+    },
     signatures::{
         SignatureAlgorithm, SignatureOptions,
         signature::{Signature, SignatureLike, SignatureStateLike, SignatureVerificationStateLike},
@@ -53,21 +53,21 @@ impl EddsaSignatureKeyPair {
     pub fn import(
         alg: SignatureAlgorithm,
         encoded: &[u8],
-        encoding: KeyPairEncoding,
+        encoding: KeypairEncoding,
     ) -> Result<Self, CryptoErrno> {
         if !(alg == SignatureAlgorithm::Ed25519) {
             return Err(CryptoErrno::UnsupportedAlgorithm);
         };
         let kp = match encoding {
-            KeyPairEncoding::Raw => EddsaSignatureKeyPair::from_raw(alg, encoded)?,
+            KeypairEncoding::Raw => EddsaSignatureKeyPair::from_raw(alg, encoded)?,
             _ => return Err(CryptoErrno::UnsupportedEncoding),
         };
         Ok(kp)
     }
 
-    pub fn export(&self, encoding: KeyPairEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub fn export(&self, encoding: KeypairEncoding) -> Result<Vec<u8>, CryptoErrno> {
         match encoding {
-            KeyPairEncoding::Raw => self.as_raw(),
+            KeypairEncoding::Raw => self.as_raw(),
             _ => Err(CryptoErrno::UnsupportedEncoding),
         }
     }
@@ -196,17 +196,17 @@ impl EddsaSignaturePublicKey {
     pub fn import(
         alg: SignatureAlgorithm,
         encoded: &[u8],
-        encoding: PublicKeyEncoding,
+        encoding: PublickeyEncoding,
     ) -> Result<Self, CryptoErrno> {
         match encoding {
-            PublicKeyEncoding::Raw => Self::from_raw(alg, encoded),
+            PublickeyEncoding::Raw => Self::from_raw(alg, encoded),
             _ => Err(CryptoErrno::UnsupportedEncoding),
         }
     }
 
-    pub fn export(&self, encoding: PublicKeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub fn export(&self, encoding: PublickeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
         match encoding {
-            PublicKeyEncoding::Raw => self.as_raw(),
+            PublickeyEncoding::Raw => self.as_raw(),
             _ => Err(CryptoErrno::UnsupportedEncoding),
         }
     }

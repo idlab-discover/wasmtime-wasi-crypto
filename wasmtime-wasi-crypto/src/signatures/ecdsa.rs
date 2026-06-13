@@ -1,10 +1,11 @@
-use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{CryptoErrno, Signature};
+use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
+    CryptoErrno, PublickeyEncoding, Signature,
+};
 use crate::signatures::{SignatureAlgorithm, SignatureOptions};
 use derivative::Derivative;
 use std::sync::Arc;
 
-use crate::asymmetric_common::publickey::PublicKeyEncoding;
-use crate::keypair::KeyPairEncoding;
+use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::KeypairEncoding;
 use crate::rand::SecureRandom;
 use crate::signatures::signature::{
     SignatureLike, SignatureStateLike, SignatureVerificationStateLike,
@@ -168,7 +169,7 @@ impl EcdsaSignatureKeyPair {
     pub fn import(
         alg: SignatureAlgorithm,
         encoded: &[u8],
-        encoding: KeyPairEncoding,
+        encoding: KeypairEncoding,
     ) -> Result<Self, CryptoErrno> {
         if !(alg == SignatureAlgorithm::ECDSA_P256_SHA256
             || alg == SignatureAlgorithm::ECDSA_K256_SHA256
@@ -177,17 +178,17 @@ impl EcdsaSignatureKeyPair {
             return Err(CryptoErrno::UnsupportedAlgorithm);
         };
         let kp = match encoding {
-            KeyPairEncoding::Raw => EcdsaSignatureKeyPair::from_raw(alg, encoded)?,
-            KeyPairEncoding::Pkcs8 => EcdsaSignatureKeyPair::from_pkcs8(alg, encoded)?,
-            KeyPairEncoding::Pem => EcdsaSignatureKeyPair::from_pem(alg, encoded)?,
+            KeypairEncoding::Raw => EcdsaSignatureKeyPair::from_raw(alg, encoded)?,
+            KeypairEncoding::Pkcs8 => EcdsaSignatureKeyPair::from_pkcs8(alg, encoded)?,
+            KeypairEncoding::Pem => EcdsaSignatureKeyPair::from_pem(alg, encoded)?,
             _ => return Err(CryptoErrno::UnsupportedEncoding),
         };
         Ok(kp)
     }
 
-    pub fn export(&self, encoding: KeyPairEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub fn export(&self, encoding: KeypairEncoding) -> Result<Vec<u8>, CryptoErrno> {
         match encoding {
-            KeyPairEncoding::Raw => self.as_raw(),
+            KeypairEncoding::Raw => self.as_raw(),
             _ => Err(CryptoErrno::UnsupportedEncoding),
         }
     }
@@ -494,21 +495,21 @@ impl EcdsaSignaturePublicKey {
     pub fn import(
         alg: SignatureAlgorithm,
         encoded: &[u8],
-        encoding: PublicKeyEncoding,
+        encoding: PublickeyEncoding,
     ) -> Result<Self, CryptoErrno> {
         match encoding {
-            PublicKeyEncoding::Raw => Self::from_raw(alg, encoded),
-            PublicKeyEncoding::Sec => Self::from_sec(alg, encoded),
-            PublicKeyEncoding::Pkcs8 => Self::from_pkcs8(alg, encoded),
-            PublicKeyEncoding::Pem => Self::from_pem(alg, encoded),
+            PublickeyEncoding::Raw => Self::from_raw(alg, encoded),
+            PublickeyEncoding::Sec => Self::from_sec(alg, encoded),
+            PublickeyEncoding::Pkcs8 => Self::from_pkcs8(alg, encoded),
+            PublickeyEncoding::Pem => Self::from_pem(alg, encoded),
             _ => Err(CryptoErrno::UnsupportedEncoding),
         }
     }
 
-    pub fn export(&self, encoding: PublicKeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub fn export(&self, encoding: PublickeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
         match encoding {
-            PublicKeyEncoding::Raw => self.as_raw(),
-            PublicKeyEncoding::Sec => self.as_sec(false),
+            PublickeyEncoding::Raw => self.as_raw(),
+            PublickeyEncoding::Sec => self.as_sec(false),
             _ => Err(CryptoErrno::UnsupportedEncoding),
         }
     }

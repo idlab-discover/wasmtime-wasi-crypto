@@ -28,7 +28,7 @@ impl SecretKey {
         }
     }
 
-    fn import(
+    pub(crate) fn import(
         _alg_type: AlgorithmType,
         _alg_str: &str,
         _encoded: &[u8],
@@ -37,7 +37,7 @@ impl SecretKey {
         return Err(CryptoErrno::NotImplemented);
     }
 
-    fn export(&self, encoding: SecretkeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub(crate) fn export(&self, encoding: SecretkeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
         match self {
             SecretKey::Signature(sk) => Ok(sk.export(encoding)?),
             SecretKey::KeyExchange(sk) => Ok(sk.export(encoding)?),
