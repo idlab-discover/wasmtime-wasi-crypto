@@ -1,3 +1,6 @@
+use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_asymmetric_common::Host as AsymmetricCommonHost;
+use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_signatures::Host as SignaturesHost;
+use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_symmetric::Host as SymmetricHost;
 use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::*, key_exchange::KxOptions,
     signatures::SignatureOptions, symmetric::SymmetricOptions,
@@ -5,17 +8,23 @@ use crate::{
 
 impl HostSymmetricTag for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<SymmetricTag>) -> wasmtime::Result<()> {
-        todo!()
+        SymmetricHost::symmetric_tag_close(self, rep)
+            .map_err(|_| wasmtime::Error::msg("Failed to close symmetric tag"))?;
+        Ok(())
     }
 }
 impl HostSymmetricKey for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<SymmetricKey>) -> wasmtime::Result<()> {
-        todo!()
+        SymmetricHost::symmetric_key_close(self, rep)
+            .map_err(|_| wasmtime::Error::msg("Failed to close symmetric key"))?;
+        Ok(())
     }
 }
 impl HostSymmetricState for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<SymmetricState>) -> wasmtime::Result<()> {
-        todo!()
+        SymmetricHost::symmetric_state_close(self, rep)
+            .map_err(|_| wasmtime::Error::msg("Failed to close symmetric state"))?;
+        Ok(())
     }
 }
 impl HostSignatureVerificationState for crate::crypto::WasiCryptoCtxView<'_> {
@@ -23,37 +32,51 @@ impl HostSignatureVerificationState for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         rep: wasmtime::component::Resource<SignatureVerificationState>,
     ) -> wasmtime::Result<()> {
-        todo!()
+        SignaturesHost::signature_verification_state_close(self, rep)
+            .map_err(|_| wasmtime::Error::msg("Failed to close signature verification state"))?;
+        Ok(())
     }
 }
 impl HostSecretkey for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<Secretkey>) -> wasmtime::Result<()> {
-        todo!()
+        AsymmetricCommonHost::secretkey_close(self, rep)
+            .map_err(|_| wasmtime::Error::msg("Failed to close secret key"))?;
+        Ok(())
     }
 }
 impl HostPublickey for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<Publickey>) -> wasmtime::Result<()> {
-        todo!()
+        AsymmetricCommonHost::publickey_close(self, rep)
+            .map_err(|_| wasmtime::Error::msg("Failed to close public key"))?;
+        Ok(())
     }
 }
 impl HostSignature for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<Signature>) -> wasmtime::Result<()> {
-        todo!()
+        SignaturesHost::signature_close(self, rep)
+            .map_err(|_| wasmtime::Error::msg("Failed to close signature"))?;
+        Ok(())
     }
 }
 impl HostSignatureState for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<SignatureState>) -> wasmtime::Result<()> {
-        todo!()
+        SignaturesHost::signature_state_close(self, rep)
+            .map_err(|_| wasmtime::Error::msg("Failed to close signature state"))?;
+        Ok(())
     }
 }
 impl HostKeypair for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<Keypair>) -> wasmtime::Result<()> {
-        todo!()
+        AsymmetricCommonHost::keypair_close(self, rep)
+            .map_err(|_| wasmtime::Error::msg("Failed to close keypair"))?;
+        Ok(())
     }
 }
 impl HostSecretsManager for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<SecretsManager>) -> wasmtime::Result<()> {
-        todo!()
+        self.secrets_manager_close(rep)
+            .map_err(|_| wasmtime::Error::msg("Failed to close secrets manager"))?;
+        Ok(())
     }
 }
 impl HostOptions for crate::crypto::WasiCryptoCtxView<'_> {
@@ -63,7 +86,10 @@ impl HostOptions for crate::crypto::WasiCryptoCtxView<'_> {
 }
 impl HostArrayOutput for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<ArrayOutput>) -> wasmtime::Result<()> {
-        todo!()
+        debug_assert!(rep.owned());
+        // The ArrayOutput's Drop impl will zeroize the underlying data for security.
+        let _: crate::array_output::ArrayOutput = self.table.delete(rep)?;
+        Ok(())
     }
 }
 
