@@ -1,16 +1,17 @@
 use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno;
-use std::io::Cursor;
+use std::io::{Cursor, Read};
 use wasmtime_wasi::ResourceTable;
+use zeroize::Zeroize;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ArrayOutput(Cursor<Vec<u8>>);
 
 impl ArrayOutput {
-    fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.0.get_ref().len()
     }
 
-    fn pull(&self, buf: &mut [u8]) -> Result<usize, CryptoErrno> {
+    pub(crate) fn pull(&self, buf: &mut [u8]) -> Result<usize, CryptoErrno> {
         let data = self.0.get_ref();
         let data_len = data.len();
         let buf_len = buf.len();
@@ -36,5 +37,17 @@ impl ArrayOutput {
             .map_err(|_| CryptoErrno::InternalError)?;
 
         Ok(handle)
+    }
+}
+
+impl Read for ArrayOutput {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
+        self.0.read(buf)
+    }
+}
+
+impl Drop for ArrayOutput {
+    fn drop(&mut self) {
+        self.0.get_mut().zeroize()
     }
 }

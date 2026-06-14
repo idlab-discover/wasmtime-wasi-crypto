@@ -158,7 +158,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         array_output: wasmtime::component::Resource<ArrayOutput>,
     ) -> Result<Size, CryptoErrno> {
-        todo!()
+        let array_output = self.table.get(&array_output)?;
+        Ok(array_output.len() as u32)
     }
 
     #[doc = "/ Copy the content of an `array_output` object into an application-allocated buffer."]
@@ -179,7 +180,11 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         array_output: wasmtime::component::Resource<ArrayOutput>,
     ) -> Result<wasmtime::component::__internal::Vec<u8>, CryptoErrno> {
-        todo!()
+        let array_output_value = self.table.get(&array_output)?;
+        let mut output = Vec::new();
+        let len = array_output_value.pull(&mut output)?;
+        let array_output = self.table.delete(array_output)?;
+        Ok(output)
     }
 
     #[doc = "/ __(optional)__"]
