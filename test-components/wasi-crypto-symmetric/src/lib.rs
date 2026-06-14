@@ -298,7 +298,8 @@ mod tests {
         let dec_state = symmetric_state_open("AES-256-GCM", Some(&key), Some(&opts2)).unwrap();
         options_close(opts2).unwrap();
         symmetric_state_absorb(&dec_state, aad).unwrap();
-        let plaintext = symmetric_state_decrypt(&dec_state, &ciphertext).unwrap();
+        let out_len = message.len();
+        let plaintext = symmetric_state_decrypt(&dec_state, &ciphertext, out_len as u32).unwrap();
 
         assert_eq!(plaintext, message);
         symmetric_key_close(key).unwrap();
@@ -323,7 +324,8 @@ mod tests {
         options_set(&opts2, "nonce", &nonce).unwrap();
         let dec_state = symmetric_state_open("AES-256-GCM", Some(&key), Some(&opts2)).unwrap();
         options_close(opts2).unwrap();
-        match symmetric_state_decrypt(&dec_state, &ciphertext) {
+        let out_len = (ciphertext.len() - 16) as u32; // AES-GCM tag is 16 bytes
+        match symmetric_state_decrypt(&dec_state, &ciphertext, out_len) {
             Err(CryptoErrno::InvalidTag) => {}
             Ok(_) => panic!("corrupted ciphertext should not decrypt"),
             Err(e) => panic!("unexpected error: {e:?}"),
