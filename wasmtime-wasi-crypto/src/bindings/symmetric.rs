@@ -581,9 +581,10 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         state: wasmtime::component::Resource<SymmetricState>,
         data: wasmtime::component::__internal::Vec<u8>,
+        out_len: u32,
     ) -> Result<wasmtime::component::__internal::Vec<u8>, CryptoErrno> {
         let symmetric_state = self.table.get(&state)?;
-        symmetric_state.locked(|mut state| state.decrypt(&data))
+        symmetric_state.locked(|mut state| state.decrypt(&data, out_len as usize))
     }
 
     #[doc = "/ - **Stream cipher:** returns `invalid_operation` since stream ciphers do not include authentication tags."]

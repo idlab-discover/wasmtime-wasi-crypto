@@ -4,7 +4,12 @@ use crate::{
         wasi_ephemeral_crypto_symmetric::SymmetricKey,
     },
     limits::Limits,
-    symmetric::{SymmetricAlgorithm, SymmetricOptions},
+    symmetric::{
+        SymmetricAlgorithm, SymmetricOptions, aes_gcm::AesGcmSymmetricState,
+        chacha_poly::ChaChaPolySymmetricState, hkdf::HkdfSymmetricState,
+        hmac_sha2::HmacSha2SymmetricState, sha2::Sha2SymmetricState,
+        xoodyak::XoodyakSymmetricState,
+    },
 };
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -43,35 +48,36 @@ impl SymmetricState {
                 return Err(CryptoErrno::InvalidKey);
             }
         }
+        let (key, options) = (key.cloned(), options.cloned());
         let size_limit = limits.0.get(alg_str).copied();
         let symmetric_state = match alg {
-            // SymmetricAlgorithm::HmacSha256 | SymmetricAlgorithm::HmacSha512 => SymmetricState::new(
-            //     Box::new(HmacSha2SymmetricState::new(alg, key, options, size_limit)?),
-            // ),
-            // SymmetricAlgorithm::Sha256
-            // | SymmetricAlgorithm::Sha384
-            // | SymmetricAlgorithm::Sha512
-            // | SymmetricAlgorithm::Sha512_256 => SymmetricState::new(Box::new(
-            //     Sha2SymmetricState::new(alg, None, options, size_limit)?,
-            // )),
-            // SymmetricAlgorithm::HkdfSha256Expand
-            // | SymmetricAlgorithm::HkdfSha512Expand
-            // | SymmetricAlgorithm::HkdfSha256Extract
-            // | SymmetricAlgorithm::HkdfSha512Extract => SymmetricState::new(Box::new(
-            //     HkdfSymmetricState::new(alg, key, options, size_limit)?,
-            // )),
-            // SymmetricAlgorithm::Aes128Gcm | SymmetricAlgorithm::Aes256Gcm => SymmetricState::new(
-            //     Box::new(AesGcmSymmetricState::new(alg, key, options, size_limit)?),
-            // ),
-            // SymmetricAlgorithm::ChaCha20Poly1305 => SymmetricState::new(Box::new(
-            //     ChaChaPolySymmetricState::new(alg, key, options, size_limit)?,
-            // )),
-            // SymmetricAlgorithm::XChaCha20Poly1305 => SymmetricState::new(Box::new(
-            //     ChaChaPolySymmetricState::new(alg, key, options, size_limit)?,
-            // )),
-            // SymmetricAlgorithm::Xoodyak128 | SymmetricAlgorithm::Xoodyak160 => SymmetricState::new(
-            //     Box::new(XoodyakSymmetricState::new(alg, key, options, size_limit)?),
-            // ),
+            SymmetricAlgorithm::HmacSha256 | SymmetricAlgorithm::HmacSha512 => SymmetricState::new(
+                Box::new(HmacSha2SymmetricState::new(alg, key, options, size_limit)?),
+            ),
+            SymmetricAlgorithm::Sha256
+            | SymmetricAlgorithm::Sha384
+            | SymmetricAlgorithm::Sha512
+            | SymmetricAlgorithm::Sha512_256 => SymmetricState::new(Box::new(
+                Sha2SymmetricState::new(alg, None, options, size_limit)?,
+            )),
+            SymmetricAlgorithm::HkdfSha256Expand
+            | SymmetricAlgorithm::HkdfSha512Expand
+            | SymmetricAlgorithm::HkdfSha256Extract
+            | SymmetricAlgorithm::HkdfSha512Extract => SymmetricState::new(Box::new(
+                HkdfSymmetricState::new(alg, key, options, size_limit)?,
+            )),
+            SymmetricAlgorithm::Aes128Gcm | SymmetricAlgorithm::Aes256Gcm => SymmetricState::new(
+                Box::new(AesGcmSymmetricState::new(alg, key, options, size_limit)?),
+            ),
+            SymmetricAlgorithm::ChaCha20Poly1305 => SymmetricState::new(Box::new(
+                ChaChaPolySymmetricState::new(alg, key, options, size_limit)?,
+            )),
+            SymmetricAlgorithm::XChaCha20Poly1305 => SymmetricState::new(Box::new(
+                ChaChaPolySymmetricState::new(alg, key, options, size_limit)?,
+            )),
+            SymmetricAlgorithm::Xoodyak128 | SymmetricAlgorithm::Xoodyak160 => SymmetricState::new(
+                Box::new(XoodyakSymmetricState::new(alg, key, options, size_limit)?),
+            ),
             _ => return Err(CryptoErrno::UnsupportedAlgorithm),
         };
         Ok(symmetric_state)
@@ -156,23 +162,19 @@ pub trait SymmetricStateLike: Sync + Send {
         self.encrypt_detached_unchecked(data)
     }
 
-    fn decrypt_unchecked(&mut self, _data: &[u8]) -> Result<Vec<u8>, CryptoErrno> {
+    fn decrypt_unchecked(&mut self, _data: &[u8], _raw_tag: &[u8]) -> Result<Vec<u8>, CryptoErrno> {
         return Err(CryptoErrno::InvalidOperation);
     }
 
-    fn decrypt(&mut self, data: &[u8]) -> Result<Vec<u8>, CryptoErrno> {
-        // if !(out.len()
-        //     == data
-        //         .len()
-        //         .checked_sub(self.max_tag_len()?)
-        //         .ok_or(CryptoErrno::Overflow)?)
-        // {
-        //     return Err(CryptoErrno::Overflow);
-        // }
+    fn decrypt(&mut self, data: &[u8], out_len: usize) -> Result<Vec<u8>, CryptoErrno> {
         if !(self.size_limit().is_none_or(|l| data.len() <= l)) {
             return Err(CryptoErrno::Overflow);
         }
-        match self.decrypt_unchecked(data) {
+        if out_len > data.len() {
+            return Err(CryptoErrno::Overflow);
+        }
+        let (ciphertext, raw_tag) = data.split_at(out_len);
+        match self.decrypt_unchecked(ciphertext, raw_tag) {
             Ok(out) => Ok(out),
             Err(e) => {
                 // out.iter_mut().for_each(|x| *x = 0);

@@ -1,7 +1,9 @@
+use crate::{
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
+    symmetric::SymmetricAlgorithm,
+};
 use subtle::ConstantTimeEq;
 use zeroize::Zeroize;
-
-use super::*;
 
 #[derive(Debug, Clone, Eq)]
 pub struct SymmetricTag {
