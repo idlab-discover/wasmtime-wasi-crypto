@@ -1,6 +1,10 @@
 use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
-    symmetric::{SymmetricAlgorithm, SymmetricOptions},
+    symmetric::{
+        SymmetricAlgorithm, SymmetricOptions, aes_gcm::AesGcmSymmetricKeyBuilder,
+        chacha_poly::ChaChaPolySymmetricKeyBuilder, hkdf::HkdfSymmetricKeyBuilder,
+        hmac_sha2::HmacSha2SymmetricKeyBuilder, xoodyak::XoodyakSymmetricKeyBuilder,
+    },
 };
 use std::{
     any::Any,
@@ -45,22 +49,22 @@ impl SymmetricKey {
     pub fn builder(alg_str: &str) -> Result<Box<dyn SymmetricKeyBuilder>, CryptoErrno> {
         let alg = SymmetricAlgorithm::try_from(alg_str)?;
         let builder = match alg {
-            // SymmetricAlgorithm::HmacSha256 | SymmetricAlgorithm::HmacSha512 => {
-            //     HmacSha2SymmetricKeyBuilder::new(alg)
-            // }
-            // SymmetricAlgorithm::HkdfSha256Expand
-            // | SymmetricAlgorithm::HkdfSha256Extract
-            // | SymmetricAlgorithm::HkdfSha512Expand
-            // | SymmetricAlgorithm::HkdfSha512Extract => HkdfSymmetricKeyBuilder::new(alg),
-            // SymmetricAlgorithm::Aes128Gcm | SymmetricAlgorithm::Aes256Gcm => {
-            //     AesGcmSymmetricKeyBuilder::new(alg)
-            // }
-            // SymmetricAlgorithm::Xoodyak128 | SymmetricAlgorithm::Xoodyak160 => {
-            //     XoodyakSymmetricKeyBuilder::new(alg)
-            // }
-            // SymmetricAlgorithm::ChaCha20Poly1305 | SymmetricAlgorithm::XChaCha20Poly1305 => {
-            //     ChaChaPolySymmetricKeyBuilder::new(alg)
-            // }
+            SymmetricAlgorithm::HmacSha256 | SymmetricAlgorithm::HmacSha512 => {
+                HmacSha2SymmetricKeyBuilder::new(alg)
+            }
+            SymmetricAlgorithm::HkdfSha256Expand
+            | SymmetricAlgorithm::HkdfSha256Extract
+            | SymmetricAlgorithm::HkdfSha512Expand
+            | SymmetricAlgorithm::HkdfSha512Extract => HkdfSymmetricKeyBuilder::new(alg),
+            SymmetricAlgorithm::Aes128Gcm | SymmetricAlgorithm::Aes256Gcm => {
+                AesGcmSymmetricKeyBuilder::new(alg)
+            }
+            SymmetricAlgorithm::Xoodyak128 | SymmetricAlgorithm::Xoodyak160 => {
+                XoodyakSymmetricKeyBuilder::new(alg)
+            }
+            SymmetricAlgorithm::ChaCha20Poly1305 | SymmetricAlgorithm::XChaCha20Poly1305 => {
+                ChaChaPolySymmetricKeyBuilder::new(alg)
+            }
             _ => return Err(CryptoErrno::InvalidOperation),
         };
         Ok(builder)
