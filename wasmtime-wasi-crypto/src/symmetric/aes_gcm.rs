@@ -183,8 +183,8 @@ impl SymmetricStateLike for AesGcmSymmetricState {
     }
 
     fn encrypt_unchecked(&mut self, data: &[u8]) -> Result<Vec<u8>, CryptoErrno> {
-        let data_len = data.len();
-        let (out, tag) = self.encrypt_detached_unchecked(data)?;
+        let (mut out, tag) = self.encrypt_detached_unchecked(data)?;
+        out.extend_from_slice(tag.as_ref());
         Ok(out)
     }
 

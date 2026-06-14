@@ -210,7 +210,6 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         let len = array_output_value.len();
         let mut output = vec![0u8; len];
         array_output_value.pull(&mut output)?;
-        let _: crate::array_output::ArrayOutput = self.table.delete(array_output)?;
         Ok(output)
     }
 

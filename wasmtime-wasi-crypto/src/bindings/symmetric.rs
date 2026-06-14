@@ -645,14 +645,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         symmetric_tag: wasmtime::component::Resource<SymmetricTag>,
     ) -> Result<wasmtime::component::__internal::Vec<u8>, CryptoErrno> {
-        let symmetric_tag_handle = symmetric_tag;
-        let symmetric_tag = self.table.get(&symmetric_tag_handle)?;
+        let symmetric_tag = self.table.get(&symmetric_tag)?;
         let out = symmetric_tag.as_ref().to_vec();
-        // if !(raw_len <= buf_len) {
-        //     return Err(CryptoErrno::Overflow);
-        // };
-        debug_assert!(symmetric_tag_handle.owned());
-        let _symmetric_tag: SymmetricTag = self.table.delete(symmetric_tag_handle)?;
         Ok(out)
     }
 

@@ -176,7 +176,12 @@ impl SymmetricStateLike for HkdfSymmetricState {
     }
 
     fn squeeze_unchecked(&mut self) -> Result<Vec<u8>, CryptoErrno> {
-        let mut out = Vec::new();
+        let out_len = match self.alg {
+            SymmetricAlgorithm::HkdfSha256Expand => 32,
+            SymmetricAlgorithm::HkdfSha512Expand => 64,
+            _ => return Err(CryptoErrno::InvalidOperation),
+        };
+        let mut out = vec![0u8; out_len];
         match self.alg {
             SymmetricAlgorithm::HkdfSha256Expand => Hkdf::<Sha256>::from_prk(&self.key)
                 .map_err(|_| CryptoErrno::InvalidKey)?
