@@ -345,7 +345,7 @@ impl SignatureVerificationStateLike for EcdsaSignatureVerificationState {
         match self.pk.ctx.as_ref() {
             EcdsaVerifyingKeyVariant::P256(x) => {
                 let ecdsa_signature = ecdsa_p256::Signature::try_from(signature.as_ref())
-                    .map_err(|_| CryptoErrno::VerificationFailed)?;
+                    .map_err(|_| CryptoErrno::InvalidSignature)?;
                 let digest = match &self.h {
                     HashVariant::Sha256(x) => x.clone(),
                     _ => return Err(CryptoErrno::UnsupportedAlgorithm),
@@ -354,7 +354,7 @@ impl SignatureVerificationStateLike for EcdsaSignatureVerificationState {
             }
             EcdsaVerifyingKeyVariant::K256(x) => {
                 let ecdsa_signature = ecdsa_k256::Signature::try_from(signature.as_ref())
-                    .map_err(|_| CryptoErrno::VerificationFailed)?;
+                    .map_err(|_| CryptoErrno::InvalidSignature)?;
                 let digest = match &self.h {
                     HashVariant::Sha256(x) => x.clone(),
                     _ => return Err(CryptoErrno::UnsupportedAlgorithm),
@@ -363,7 +363,7 @@ impl SignatureVerificationStateLike for EcdsaSignatureVerificationState {
             }
             EcdsaVerifyingKeyVariant::P384(x) => {
                 let ecdsa_signature = ecdsa_p384::Signature::try_from(signature.as_ref())
-                    .map_err(|_| CryptoErrno::VerificationFailed)?;
+                    .map_err(|_| CryptoErrno::InvalidSignature)?;
                 let digest = match &self.h {
                     HashVariant::Sha384(x) => x.clone(),
                     _ => return Err(CryptoErrno::UnsupportedAlgorithm),
@@ -371,7 +371,7 @@ impl SignatureVerificationStateLike for EcdsaSignatureVerificationState {
                 x.verify_digest(digest, &ecdsa_signature)
             }
         }
-        .map_err(|_| CryptoErrno::VerificationFailed)?;
+        .map_err(|_| CryptoErrno::InvalidSignature)?;
         Ok(())
     }
 }

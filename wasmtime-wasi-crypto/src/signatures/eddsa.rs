@@ -130,6 +130,7 @@ impl SignatureStateLike for EddsaSignatureState {
 
     fn sign(&mut self) -> Result<Signature, CryptoErrno> {
         let signature_u8 = self.st.sign().to_vec();
+        self.st = self.kp.ctx.sk.sign_incremental(Default::default());
         let signature = EddsaSignature::new(signature_u8);
         Ok(Signature::new(Box::new(signature)))
     }
@@ -171,7 +172,7 @@ impl SignatureVerificationStateLike for EddsaSignatureVerificationState {
                 &ed25519_compact::Signature::from_slice(&signature_u8)
                     .map_err(|_| CryptoErrno::InvalidSignature)?,
             )
-            .map_err(|_| CryptoErrno::VerificationFailed)?;
+            .map_err(|_| CryptoErrno::InvalidSignature)?;
         Ok(())
     }
 }
