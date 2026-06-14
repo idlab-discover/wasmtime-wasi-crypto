@@ -257,20 +257,22 @@ fn padding_scheme(alg: SignatureAlgorithm) -> (rsa::Padding, boring::hash::Messa
 }
 
 pub struct RsaSignatureState<'z> {
+    alg: SignatureAlgorithm,
     ctx: Pin<Box<pkey::PKey<pkey::Private>>>,
     signer: boring::sign::Signer<'z>,
 }
 
 impl RsaSignatureState<'_> {
     pub fn new(kp: RsaSignatureKeyPair) -> Self {
+        let alg = kp.alg;
         let ctx = Box::pin(pkey::PKey::from_rsa(kp.ctx).unwrap());
-        let (padding_alg, padding_hash) = padding_scheme(kp.alg);
+        let (padding_alg, padding_hash) = padding_scheme(alg);
         let pkr: *const pkey::PKey<pkey::Private> = ctx.as_ref().get_ref();
         let mut signer = boring::sign::Signer::new(padding_hash, unsafe { &*pkr }).unwrap();
         signer
             .set_rsa_padding(padding_alg)
             .expect("Unexpected padding");
-        RsaSignatureState { ctx, signer }
+        RsaSignatureState { alg, ctx, signer }
     }
 }
 
@@ -287,6 +289,21 @@ impl SignatureStateLike for RsaSignatureState<'_> {
             .signer
             .sign_to_vec()
             .map_err(|_| CryptoErrno::InternalError)?;
+
+        // boring::sign::Signer::sign_to_vec() finalises the digest context,
+        // leaving the signer unusable for further update+sign cycles. The WASI
+        // spec says the state is not closed after sign() and must be reusable.
+        // Reconstruct the signer from the pinned key (address is stable) and
+        // the stored algorithm so the next cycle starts from a clean state.
+        let (padding_alg, padding_hash) = padding_scheme(self.alg);
+        let pkr: *const pkey::PKey<pkey::Private> = self.ctx.as_ref().get_ref();
+        let mut new_signer = boring::sign::Signer::new(padding_hash, unsafe { &*pkr })
+            .map_err(|_| CryptoErrno::InternalError)?;
+        new_signer
+            .set_rsa_padding(padding_alg)
+            .map_err(|_| CryptoErrno::InternalError)?;
+        self.signer = new_signer;
+
         let signature = RsaSignature::new(signature);
         Ok(Signature::new(Box::new(signature)))
     }

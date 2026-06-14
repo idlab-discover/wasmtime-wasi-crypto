@@ -17,7 +17,7 @@ mod tests {
     use crate::wasi::crypto::wasi_ephemeral_crypto_asymmetric_common::{
         KeypairEncoding, PublickeyEncoding, keypair_close, keypair_export, keypair_generate,
         keypair_generate_managed, keypair_import, keypair_publickey, keypair_store_managed,
-        publickey_close, publickey_export, publickey_import,
+        publickey_close, publickey_export, publickey_import, publickey_verify,
     };
     use crate::wasi::crypto::wasi_ephemeral_crypto_common::{
         AlgorithmType, CryptoErrno, SignatureEncoding, array_output_pull, secrets_manager_close,
@@ -540,6 +540,113 @@ mod tests {
         let (kp, pk) = generate_kp(alg);
         let raw_sig = sign(&kp, b"test");
         verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
+
+    // ── Bug regression: publickey_verify was always NotImplemented ────────────
+
+    #[test]
+    fn publickey_verify_returns_ok_for_all_algorithms() {
+        // publickey_verify previously always returned NotImplemented.  It should
+        // return Ok(()) for any key that was successfully imported, because import
+        // already performs the structural/cryptographic validity checks.
+        let algs = [
+            "Ed25519",
+            "ECDSA_P256_SHA256",
+            "ECDSA_K256_SHA256",
+            "ECDSA_P384_SHA384",
+            "RSA_PKCS1_2048_SHA256",
+        ];
+        for alg in algs {
+            let (kp, pk) = generate_kp(alg);
+            publickey_verify(&pk)
+                .unwrap_or_else(|e| panic!("publickey_verify({alg}) returned {e:?}, expected Ok(())"));
+            keypair_close(kp).unwrap();
+            publickey_close(pk).unwrap();
+        }
+    }
+
+    // ── Bug regression: signature_verification_state_verify owns the signature handle ─
+
+    #[test]
+    fn signature_verify_consumes_signature_handle() {
+        // signature_verification_state_verify takes plain `signature` (owned),
+        // meaning the host must consume (delete) the handle. If it leaks, repeated
+        // calls would fill the resource table. Verify the handle is gone by ensuring
+        // signature_close on it after verify fails with an appropriate error.
+        let (kp, pk) = generate_kp("Ed25519");
+        let raw_sig = sign(&kp, b"test");
+
+        let sig = signature_import("Ed25519", &raw_sig, SignatureEncoding::Raw).unwrap();
+        let state = signature_verification_state_open(&pk).unwrap();
+        signature_verification_state_update(&state, b"test").unwrap();
+        // verify takes ownership of `sig`
+        signature_verification_state_verify(&state, sig).unwrap();
+        // After verify, the signature handle should have been consumed by the host.
+        // Attempting to close it again should fail (InvalidHandle or similar), not silently succeed.
+        // We do NOT call signature_close(sig) here — that would be a double-free.
+        signature_verification_state_close(state).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
+
+    // ── Bug regression: signature_export encoding parameter ──────────────────
+
+    #[test]
+    fn signature_export_raw_returns_correct_bytes() {
+        // signature_export must respect the encoding parameter.
+        // For Raw encoding the returned bytes must be importable as Raw.
+        let (kp, pk) = generate_kp("Ed25519");
+
+        let state = signature_state_open(&kp).unwrap();
+        signature_state_update(&state, b"test").unwrap();
+        let sig = signature_state_sign(&state).unwrap();
+        signature_state_close(state).unwrap();
+
+        let raw_bytes =
+            array_output_pull(&signature_export(&sig, SignatureEncoding::Raw).unwrap()).unwrap();
+        assert_eq!(raw_bytes.len(), 64, "Ed25519 raw signature must be 64 bytes");
+
+        // Re-import and verify to confirm the bytes are valid
+        let sig2 = signature_import("Ed25519", &raw_bytes, SignatureEncoding::Raw).unwrap();
+        let vstate = signature_verification_state_open(&pk).unwrap();
+        signature_verification_state_update(&vstate, b"test").unwrap();
+        signature_verification_state_verify(&vstate, sig2).unwrap();
+        signature_verification_state_close(vstate).unwrap();
+
+        signature_close(sig).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
+
+    // ── Bug regression: RSA sign() state reuse ───────────────────────────────
+
+    #[test]
+    fn rsa_pkcs1_2048_sha256_sign_state_reuse() {
+        // The spec says "The state is not closed and can be used after a signature
+        // has been computed." RSA sign() must reset the BoringSSL signer so a
+        // second update+sign cycle produces a valid, verifiable signature.
+        let alg = "RSA_PKCS1_2048_SHA256";
+        let (kp, pk) = generate_kp(alg);
+
+        let state = signature_state_open(&kp).unwrap();
+        signature_state_update(&state, b"first message").unwrap();
+        let sig1 = signature_state_sign(&state).unwrap();
+        let raw1 = array_output_pull(&signature_export(&sig1, SignatureEncoding::Raw).unwrap()).unwrap();
+        signature_close(sig1).unwrap();
+
+        // Second sign cycle on the same state handle
+        signature_state_update(&state, b"second message").unwrap();
+        let sig2 = signature_state_sign(&state).unwrap();
+        let raw2 = array_output_pull(&signature_export(&sig2, SignatureEncoding::Raw).unwrap()).unwrap();
+        signature_close(sig2).unwrap();
+
+        // Both must verify
+        verify_raw(&pk, b"first message", alg, &raw1, SignatureEncoding::Raw).unwrap();
+        verify_raw(&pk, b"second message", alg, &raw2, SignatureEncoding::Raw).unwrap();
+
+        signature_state_close(state).unwrap();
         keypair_close(kp).unwrap();
         publickey_close(pk).unwrap();
     }

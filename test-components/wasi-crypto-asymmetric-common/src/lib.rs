@@ -287,4 +287,26 @@ mod tests {
         publickey_close(pk).unwrap();
         publickey_close(pk2).unwrap();
     }
+
+    // ── Bug regression: publickey_verify for Signatures keys ─────────────────
+
+    #[test]
+    fn publickey_verify_ed25519_valid_key_returns_ok() {
+        // SignaturePublicKey::verify was a NotImplemented stub; it must return Ok(())
+        // for a freshly generated (structurally valid) Ed25519 public key.
+        let kp = keypair_generate(AlgorithmType::Signatures, "Ed25519", None).unwrap();
+        let pk = keypair_publickey(&kp).unwrap();
+        publickey_verify(&pk).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
+
+    #[test]
+    fn publickey_verify_ecdsa_p256_valid_key_returns_ok() {
+        let kp = keypair_generate(AlgorithmType::Signatures, "ECDSA_P256_SHA256", None).unwrap();
+        let pk = keypair_publickey(&kp).unwrap();
+        publickey_verify(&pk).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
 }

@@ -29,6 +29,7 @@ pub struct HkdfSymmetricState {
 impl Drop for HkdfSymmetricState {
     fn drop(&mut self) {
         self.key.zeroize();
+        self.data.zeroize();
     }
 }
 

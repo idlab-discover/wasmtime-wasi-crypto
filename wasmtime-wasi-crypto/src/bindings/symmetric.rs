@@ -447,7 +447,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         data: wasmtime::component::__internal::Vec<u8>,
     ) -> Result<(), CryptoErrno> {
         let symmetric_state = self.table.get(&state)?;
-        symmetric_state.locked(|mut state| state.absorb_unchecked(&data))
+        symmetric_state.locked(|mut state| state.absorb(&data))
     }
 
     #[doc = "/ Squeeze bytes from the state."]

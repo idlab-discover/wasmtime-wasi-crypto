@@ -241,8 +241,14 @@ impl SymmetricStateLike for XoodyakSymmetricState {
             .xoodyak_state
             .aead_decrypt_detached(&mut out, &raw_tag_.into(), Some(data))
         {
-            Err(XoodyakError::KeyRequired) => Err(CryptoErrno::InvalidOperation),
-            Err(_) => Err(CryptoErrno::InvalidTag),
+            Err(XoodyakError::KeyRequired) => {
+                out.zeroize();
+                Err(CryptoErrno::InvalidOperation)
+            }
+            Err(_) => {
+                out.zeroize();
+                Err(CryptoErrno::InvalidTag)
+            }
             Ok(()) => Ok(out),
         }
     }
