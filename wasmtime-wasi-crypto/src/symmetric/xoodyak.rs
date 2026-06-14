@@ -167,7 +167,7 @@ impl SymmetricStateLike for XoodyakSymmetricState {
     }
 
     fn squeeze_unchecked(&mut self) -> Result<Vec<u8>, CryptoErrno> {
-        let mut out = Vec::new();
+        let mut out = vec![0u8; XOODYAK_AUTH_TAG_BYTES];
         self.xoodyak_state.squeeze(&mut out);
         Ok(out)
     }
@@ -195,7 +195,7 @@ impl SymmetricStateLike for XoodyakSymmetricState {
             .len()
             .checked_add(XOODYAK_AUTH_TAG_BYTES)
             .ok_or(CryptoErrno::Overflow)?;
-        let mut out = Vec::new();
+        let mut out = vec![0u8; ct_len];
         match self.xoodyak_state.aead_encrypt(&mut out, Some(data)) {
             Err(XoodyakError::KeyRequired) => Err(CryptoErrno::InvalidOperation),
             Err(_) => Err(CryptoErrno::Overflow),
@@ -207,7 +207,7 @@ impl SymmetricStateLike for XoodyakSymmetricState {
         &mut self,
         data: &[u8],
     ) -> Result<(Vec<u8>, SymmetricTag), CryptoErrno> {
-        let mut out = Vec::new();
+        let mut out = vec![0u8; data.len()];
         match self
             .xoodyak_state
             .aead_encrypt_detached(&mut out, Some(data))
@@ -230,7 +230,7 @@ impl SymmetricStateLike for XoodyakSymmetricState {
         data: &[u8],
         raw_tag: &[u8],
     ) -> Result<Vec<u8>, CryptoErrno> {
-        let mut out = Vec::new();
+        let mut out = vec![0u8; data.len()];
         let msg_len = data.len();
         let mut raw_tag_ = [0u8; XOODYAK_AUTH_TAG_BYTES];
         if !(raw_tag.len() == raw_tag_.len()) {

@@ -362,4 +362,185 @@ mod tests {
         publickey_close(pk).unwrap();
         secrets_manager_close(sm).unwrap();
     }
+
+    // ── ECDSA P384 ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn ecdsa_p384_sha384_sign_and_verify() {
+        let (kp, pk) = generate_kp("ECDSA_P384_SHA384");
+        let raw_sig = sign(&kp, b"test");
+        verify_raw(&pk, b"test", "ECDSA_P384_SHA384", &raw_sig, SignatureEncoding::Raw).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
+
+    #[test]
+    fn ecdsa_p384_raw_signature_is_96_bytes() {
+        let (kp, pk) = generate_kp("ECDSA_P384_SHA384");
+        let raw_sig = sign(&kp, b"test");
+        assert_eq!(raw_sig.len(), 96, "P-384 raw signature must be 96 bytes (r||s)");
+        verify_raw(&pk, b"test", "ECDSA_P384_SHA384", &raw_sig, SignatureEncoding::Raw).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
+
+    #[test]
+    fn ecdsa_p384_keypair_export_import_round_trip() {
+        let alg = "ECDSA_P384_SHA384";
+        let (kp, pk) = generate_kp(alg);
+
+        let pk_raw = array_output_pull(&publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
+        let pk2 = publickey_import(AlgorithmType::Signatures, alg, &pk_raw, PublickeyEncoding::Raw).unwrap();
+
+        let kp_raw = array_output_pull(&keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
+        let kp2 = keypair_import(AlgorithmType::Signatures, alg, &kp_raw, KeypairEncoding::Raw).unwrap();
+
+        let raw_sig = sign(&kp2, b"test");
+        verify_raw(&pk2, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
+
+        keypair_close(kp).unwrap();
+        keypair_close(kp2).unwrap();
+        publickey_close(pk).unwrap();
+        publickey_close(pk2).unwrap();
+    }
+
+    #[test]
+    fn ecdsa_p384_wrong_message_returns_invalid_signature() {
+        let (kp, pk) = generate_kp("ECDSA_P384_SHA384");
+        let raw_sig = sign(&kp, b"correct");
+        match verify_raw(&pk, b"wrong", "ECDSA_P384_SHA384", &raw_sig, SignatureEncoding::Raw) {
+            Err(CryptoErrno::InvalidSignature) => {}
+            Ok(()) => panic!("wrong message should not verify"),
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
+
+    #[test]
+    fn ecdsa_k256_wrong_message_returns_invalid_signature() {
+        let (kp, pk) = generate_kp("ECDSA_K256_SHA256");
+        let raw_sig = sign(&kp, b"correct");
+        match verify_raw(&pk, b"wrong", "ECDSA_K256_SHA256", &raw_sig, SignatureEncoding::Raw) {
+            Err(CryptoErrno::InvalidSignature) => {}
+            Ok(()) => panic!("wrong message should not verify"),
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
+
+    // ── RSA PKCS#1 additional variants ───────────────────────────────────────
+
+    #[test]
+    fn rsa_pkcs1_2048_sha384_sign_and_verify() {
+        let alg = "RSA_PKCS1_2048_SHA384";
+        let (kp, pk) = generate_kp(alg);
+        let raw_sig = sign(&kp, b"test");
+        verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
+
+    #[test]
+    fn rsa_pkcs1_2048_sha512_sign_and_verify() {
+        let alg = "RSA_PKCS1_2048_SHA512";
+        let (kp, pk) = generate_kp(alg);
+        let raw_sig = sign(&kp, b"test");
+        verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
+
+    #[test]
+    fn rsa_pkcs1_3072_sha384_sign_and_verify() {
+        let alg = "RSA_PKCS1_3072_SHA384";
+        let (kp, pk) = generate_kp(alg);
+        let raw_sig = sign(&kp, b"test");
+        verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
+
+    #[test]
+    fn rsa_pkcs1_3072_sha512_sign_and_verify() {
+        let alg = "RSA_PKCS1_3072_SHA512";
+        let (kp, pk) = generate_kp(alg);
+        let raw_sig = sign(&kp, b"test");
+        verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
+
+    #[test]
+    fn rsa_pkcs1_4096_sha512_sign_and_verify() {
+        let alg = "RSA_PKCS1_4096_SHA512";
+        let (kp, pk) = generate_kp(alg);
+        let raw_sig = sign(&kp, b"test");
+        verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
+
+    // ── RSA PSS variants ──────────────────────────────────────────────────────
+
+    #[test]
+    fn rsa_pss_2048_sha256_sign_and_verify() {
+        let alg = "RSA_PSS_2048_SHA256";
+        let (kp, pk) = generate_kp(alg);
+        let raw_sig = sign(&kp, b"test");
+        verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
+
+    #[test]
+    fn rsa_pss_2048_sha384_sign_and_verify() {
+        let alg = "RSA_PSS_2048_SHA384";
+        let (kp, pk) = generate_kp(alg);
+        let raw_sig = sign(&kp, b"test");
+        verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
+
+    #[test]
+    fn rsa_pss_2048_sha512_sign_and_verify() {
+        let alg = "RSA_PSS_2048_SHA512";
+        let (kp, pk) = generate_kp(alg);
+        let raw_sig = sign(&kp, b"test");
+        verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
+
+    #[test]
+    fn rsa_pss_3072_sha384_sign_and_verify() {
+        let alg = "RSA_PSS_3072_SHA384";
+        let (kp, pk) = generate_kp(alg);
+        let raw_sig = sign(&kp, b"test");
+        verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
+
+    #[test]
+    fn rsa_pss_3072_sha512_sign_and_verify() {
+        let alg = "RSA_PSS_3072_SHA512";
+        let (kp, pk) = generate_kp(alg);
+        let raw_sig = sign(&kp, b"test");
+        verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
+
+    #[test]
+    fn rsa_pss_4096_sha512_sign_and_verify() {
+        let alg = "RSA_PSS_4096_SHA512";
+        let (kp, pk) = generate_kp(alg);
+        let raw_sig = sign(&kp, b"test");
+        verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+    }
 }

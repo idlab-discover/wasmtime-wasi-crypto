@@ -457,4 +457,341 @@ mod tests {
         }
         symmetric_key_close(key).unwrap();
     }
+
+    // ── hash: all SHA-2 variants ──────────────────────────────────────────────
+
+    #[test]
+    fn hash_sha384_absorb_squeeze() {
+        let state = open("SHA-384", None);
+        symmetric_state_absorb(&state, b"data").unwrap();
+        let out = symmetric_state_squeeze(&state).unwrap();
+        assert_eq!(out.len(), 48, "SHA-384 always produces 48 bytes");
+    }
+
+    #[test]
+    fn hash_sha512_absorb_squeeze() {
+        let state = open("SHA-512", None);
+        symmetric_state_absorb(&state, b"data").unwrap();
+        let out = symmetric_state_squeeze(&state).unwrap();
+        assert_eq!(out.len(), 64, "SHA-512 always produces 64 bytes");
+    }
+
+    #[test]
+    fn hash_sha512_256_correct_fips_iv() {
+        // SHA-512/256 is the FIPS 180-4 hash with its own distinct initial values.
+        // For "abc" the expected digest is 53048e26...
+        // Plain SHA-512 truncated to 32 bytes would be ddaf35..., which must NOT appear.
+        let state = open("SHA-512/256", None);
+        symmetric_state_absorb(&state, b"abc").unwrap();
+        let out = symmetric_state_squeeze(&state).unwrap();
+        assert_eq!(out.len(), 32);
+        let expected = [
+            0x53, 0x04, 0x8e, 0x26, 0x81, 0x94, 0x1e, 0xf9, 0x9b, 0x2e, 0x29, 0xb7, 0x6b, 0x4c,
+            0x7d, 0xab, 0xe4, 0xc2, 0xd0, 0xc6, 0x34, 0xfc, 0x6d, 0x46, 0xe0, 0xe2, 0xf1, 0x31,
+            0x07, 0xe7, 0xaf, 0x23,
+        ];
+        let truncated_sha512 = [
+            0xdd, 0xaf, 0x35, 0xa1, 0x93, 0x61, 0x7a, 0xba, 0xcc, 0x41, 0x73, 0x49, 0xae, 0x20,
+            0x41, 0x31, 0x12, 0xe6, 0xfa, 0x4e, 0x89, 0xa9, 0x7e, 0xa2, 0x0a, 0x9e, 0xee, 0xe6,
+            0x4b, 0x55, 0xd3, 0x9a,
+        ];
+        assert_eq!(out, expected, "SHA-512/256 must use FIPS 180-4 initial values");
+        assert_ne!(out, truncated_sha512, "SHA-512/256 must not be plain truncated SHA-512");
+    }
+
+    #[test]
+    fn hash_sha256_known_answer() {
+        // Known digest for "data" || "more_data" from the WITX reference test_hash.
+        let state = open("SHA-256", None);
+        symmetric_state_absorb(&state, b"data").unwrap();
+        symmetric_state_absorb(&state, b"more_data").unwrap();
+        let out = symmetric_state_squeeze(&state).unwrap();
+        let expected: [u8; 32] = [
+            19, 196, 14, 236, 34, 84, 26, 21, 94, 23, 32, 16, 199, 253, 110, 246, 84, 228, 225,
+            56, 160, 194, 9, 35, 249, 169, 16, 98, 162, 127, 87, 182,
+        ];
+        assert_eq!(out, expected);
+    }
+
+    // ── HKDF: SHA-256 variant ─────────────────────────────────────────────────
+
+    #[test]
+    fn hkdf_sha256_extract_and_expand() {
+        let ikm = import("HKDF-EXTRACT/SHA-256", b"input_key_material");
+        let extract_state = symmetric_state_open("HKDF-EXTRACT/SHA-256", Some(&ikm), None).unwrap();
+        symmetric_state_absorb(&extract_state, b"salt").unwrap();
+        let prk = symmetric_state_squeeze_key(&extract_state, "HKDF-EXPAND/SHA-256").unwrap();
+
+        let expand_state = symmetric_state_open("HKDF-EXPAND/SHA-256", Some(&prk), None).unwrap();
+        symmetric_state_absorb(&expand_state, b"info").unwrap();
+        let subkey = symmetric_state_squeeze(&expand_state).unwrap();
+        assert_eq!(subkey.len(), 32, "HKDF-EXPAND/SHA-256 OKM is 32 bytes");
+
+        symmetric_key_close(ikm).unwrap();
+        symmetric_key_close(prk).unwrap();
+    }
+
+    // ── AEAD: AES-128-GCM ─────────────────────────────────────────────────────
+
+    #[test]
+    fn aead_aes128gcm_encrypt_decrypt() {
+        let nonce = [0u8; 12];
+        let message = b"hello aes128";
+        let key = generate("AES-128-GCM");
+
+        let opts = options_open(AlgorithmType::Symmetric).unwrap();
+        options_set(&opts, "nonce", &nonce).unwrap();
+        let enc_state = symmetric_state_open("AES-128-GCM", Some(&key), Some(&opts)).unwrap();
+        options_close(opts).unwrap();
+        let ciphertext = symmetric_state_encrypt(&enc_state, message).unwrap();
+
+        let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
+        options_set(&opts2, "nonce", &nonce).unwrap();
+        let dec_state = symmetric_state_open("AES-128-GCM", Some(&key), Some(&opts2)).unwrap();
+        options_close(opts2).unwrap();
+        let plaintext = symmetric_state_decrypt(&dec_state, &ciphertext, message.len() as u32).unwrap();
+        assert_eq!(plaintext, message);
+        symmetric_key_close(key).unwrap();
+    }
+
+    #[test]
+    fn aead_aes128gcm_wrong_tag_returns_invalid_tag() {
+        let nonce = [0u8; 12];
+        let key = generate("AES-128-GCM");
+
+        let opts = options_open(AlgorithmType::Symmetric).unwrap();
+        options_set(&opts, "nonce", &nonce).unwrap();
+        let enc_state = symmetric_state_open("AES-128-GCM", Some(&key), Some(&opts)).unwrap();
+        options_close(opts).unwrap();
+        let mut ciphertext = symmetric_state_encrypt(&enc_state, b"hello").unwrap();
+        let len = ciphertext.len();
+        ciphertext[len - 1] ^= 0xff;
+
+        let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
+        options_set(&opts2, "nonce", &nonce).unwrap();
+        let dec_state = symmetric_state_open("AES-128-GCM", Some(&key), Some(&opts2)).unwrap();
+        options_close(opts2).unwrap();
+        let out_len = (ciphertext.len() - 16) as u32;
+        match symmetric_state_decrypt(&dec_state, &ciphertext, out_len) {
+            Err(CryptoErrno::InvalidTag) => {}
+            Ok(_) => panic!("corrupted ciphertext should not decrypt"),
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+        symmetric_key_close(key).unwrap();
+    }
+
+    // ── AEAD: ChaCha20-Poly1305 ───────────────────────────────────────────────
+
+    #[test]
+    fn aead_chacha20poly1305_encrypt_decrypt() {
+        let nonce = [42u8; 12];
+        let message = b"test chacha20";
+        let key = generate("CHACHA20-POLY1305");
+
+        let opts = options_open(AlgorithmType::Symmetric).unwrap();
+        options_set(&opts, "nonce", &nonce).unwrap();
+        let enc_state = symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
+        options_close(opts).unwrap();
+        let ciphertext = symmetric_state_encrypt(&enc_state, message).unwrap();
+
+        let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
+        options_set(&opts2, "nonce", &nonce).unwrap();
+        let dec_state = symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
+        options_close(opts2).unwrap();
+        let plaintext = symmetric_state_decrypt(&dec_state, &ciphertext, message.len() as u32).unwrap();
+        assert_eq!(plaintext, message);
+        symmetric_key_close(key).unwrap();
+    }
+
+    #[test]
+    fn aead_chacha20poly1305_key_len_is_32() {
+        let key = generate("CHACHA20-POLY1305");
+        let raw = {
+            let ao = symmetric_key_export(&key).unwrap();
+            crate::wasi::crypto::wasi_ephemeral_crypto_common::array_output_pull(&ao).unwrap()
+        };
+        assert_eq!(raw.len(), 32, "ChaCha20-Poly1305 key is 32 bytes");
+        symmetric_key_close(key).unwrap();
+    }
+
+    #[test]
+    fn aead_chacha20poly1305_wrong_tag_returns_invalid_tag() {
+        let nonce = [0u8; 12];
+        let key = generate("CHACHA20-POLY1305");
+
+        let opts = options_open(AlgorithmType::Symmetric).unwrap();
+        options_set(&opts, "nonce", &nonce).unwrap();
+        let enc_state = symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
+        options_close(opts).unwrap();
+        let mut ciphertext = symmetric_state_encrypt(&enc_state, b"hello").unwrap();
+        let len = ciphertext.len();
+        ciphertext[len - 1] ^= 0xff;
+
+        let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
+        options_set(&opts2, "nonce", &nonce).unwrap();
+        let dec_state = symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
+        options_close(opts2).unwrap();
+        let out_len = (ciphertext.len() - 16) as u32;
+        match symmetric_state_decrypt(&dec_state, &ciphertext, out_len) {
+            Err(CryptoErrno::InvalidTag) => {}
+            Ok(_) => panic!("corrupted ciphertext should not decrypt"),
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+        symmetric_key_close(key).unwrap();
+    }
+
+    #[test]
+    fn aead_chacha20poly1305_detached_round_trip() {
+        let nonce = [1u8; 12];
+        let message = b"detached chacha";
+        let key = generate("CHACHA20-POLY1305");
+
+        let opts = options_open(AlgorithmType::Symmetric).unwrap();
+        options_set(&opts, "nonce", &nonce).unwrap();
+        let enc_state = symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
+        options_close(opts).unwrap();
+        let (ciphertext, tag) = symmetric_state_encrypt_detached(&enc_state, message).unwrap();
+        let raw_tag = symmetric_tag_pull(&tag).unwrap();
+
+        let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
+        options_set(&opts2, "nonce", &nonce).unwrap();
+        let dec_state = symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
+        options_close(opts2).unwrap();
+        let plaintext = symmetric_state_decrypt_detached(&dec_state, &ciphertext, &raw_tag).unwrap();
+        assert_eq!(plaintext, message);
+        symmetric_key_close(key).unwrap();
+    }
+
+    // ── AEAD: XChaCha20-Poly1305 ─────────────────────────────────────────────
+
+    #[test]
+    fn aead_xchacha20poly1305_encrypt_decrypt() {
+        let nonce = [7u8; 24]; // XChaCha20 uses a 24-byte nonce
+        let message = b"test xchacha20";
+        let key = generate("XCHACHA20-POLY1305");
+
+        let opts = options_open(AlgorithmType::Symmetric).unwrap();
+        options_set(&opts, "nonce", &nonce).unwrap();
+        let enc_state = symmetric_state_open("XCHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
+        options_close(opts).unwrap();
+        let ciphertext = symmetric_state_encrypt(&enc_state, message).unwrap();
+
+        let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
+        options_set(&opts2, "nonce", &nonce).unwrap();
+        let dec_state = symmetric_state_open("XCHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
+        options_close(opts2).unwrap();
+        let plaintext = symmetric_state_decrypt(&dec_state, &ciphertext, message.len() as u32).unwrap();
+        assert_eq!(plaintext, message);
+        symmetric_key_close(key).unwrap();
+    }
+
+    #[test]
+    fn aead_xchacha20poly1305_wrong_tag_returns_invalid_tag() {
+        let nonce = [0u8; 24];
+        let key = generate("XCHACHA20-POLY1305");
+
+        let opts = options_open(AlgorithmType::Symmetric).unwrap();
+        options_set(&opts, "nonce", &nonce).unwrap();
+        let enc_state = symmetric_state_open("XCHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
+        options_close(opts).unwrap();
+        let mut ciphertext = symmetric_state_encrypt(&enc_state, b"hello").unwrap();
+        let len = ciphertext.len();
+        ciphertext[len - 1] ^= 0xff;
+
+        let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
+        options_set(&opts2, "nonce", &nonce).unwrap();
+        let dec_state = symmetric_state_open("XCHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
+        options_close(opts2).unwrap();
+        let out_len = (ciphertext.len() - 16) as u32;
+        match symmetric_state_decrypt(&dec_state, &ciphertext, out_len) {
+            Err(CryptoErrno::InvalidTag) => {}
+            Ok(_) => panic!("corrupted ciphertext should not decrypt"),
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+        symmetric_key_close(key).unwrap();
+    }
+
+    // ── Xoodyak-128: hash, MAC, AEAD, ratchet ────────────────────────────────
+
+    #[test]
+    fn xoodyak128_keyless_hash_squeeze() {
+        let state = open("XOODYAK-128", None);
+        symmetric_state_absorb(&state, b"data").unwrap();
+        symmetric_state_absorb(&state, b"more_data").unwrap();
+        let out = symmetric_state_squeeze(&state).unwrap();
+        assert!(!out.is_empty());
+    }
+
+    #[test]
+    fn xoodyak128_squeeze_tag() {
+        let key = generate("XOODYAK-128");
+        let state = symmetric_state_open("XOODYAK-128", Some(&key), None).unwrap();
+        symmetric_state_absorb(&state, b"data").unwrap();
+        let tag = symmetric_state_squeeze_tag(&state).unwrap();
+        let raw = symmetric_tag_pull(&tag).unwrap();
+        assert!(!raw.is_empty());
+        symmetric_key_close(key).unwrap();
+    }
+
+    #[test]
+    fn xoodyak128_encrypt_decrypt() {
+        let msg = b"test xoodyak";
+        let key = generate("XOODYAK-128");
+
+        let enc_state = symmetric_state_open("XOODYAK-128", Some(&key), None).unwrap();
+        let ciphertext = symmetric_state_encrypt(&enc_state, msg).unwrap();
+
+        let dec_state = symmetric_state_open("XOODYAK-128", Some(&key), None).unwrap();
+        let plaintext = symmetric_state_decrypt(&dec_state, &ciphertext, msg.len() as u32).unwrap();
+        assert_eq!(plaintext, msg);
+        symmetric_key_close(key).unwrap();
+    }
+
+    #[test]
+    fn xoodyak128_session_squeeze_ratchet_matches() {
+        // Port of the WITX reference test_session: two parties run the same
+        // sequence of absorb/squeeze/encrypt/absorb/ratchet/squeeze and must
+        // arrive at identical squeezed outputs.
+        let msg = b"test";
+        let key = generate("XOODYAK-128");
+
+        // Sender side
+        let sender = symmetric_state_open("XOODYAK-128", Some(&key), None).unwrap();
+        symmetric_state_absorb(&sender, b"data").unwrap();
+        let squeezed_sender1 = symmetric_state_squeeze(&sender).unwrap();
+        let ciphertext = symmetric_state_encrypt(&sender, msg).unwrap();
+        symmetric_state_absorb(&sender, b"more_data").unwrap();
+        symmetric_state_ratchet(&sender).unwrap();
+        let squeezed_sender2 = symmetric_state_squeeze(&sender).unwrap();
+
+        // Receiver side
+        let receiver = symmetric_state_open("XOODYAK-128", Some(&key), None).unwrap();
+        symmetric_state_absorb(&receiver, b"data").unwrap();
+        let squeezed_receiver1 = symmetric_state_squeeze(&receiver).unwrap();
+        let plaintext = symmetric_state_decrypt(&receiver, &ciphertext, msg.len() as u32).unwrap();
+        assert_eq!(plaintext, msg);
+        symmetric_state_absorb(&receiver, b"more_data").unwrap();
+        symmetric_state_ratchet(&receiver).unwrap();
+        let squeezed_receiver2 = symmetric_state_squeeze(&receiver).unwrap();
+
+        assert_eq!(squeezed_sender1, squeezed_receiver1, "pre-encrypt squeeze must match");
+        assert_eq!(squeezed_sender2, squeezed_receiver2, "post-ratchet squeeze must match");
+        symmetric_key_close(key).unwrap();
+    }
+
+    // ── Xoodyak-160 ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn xoodyak160_encrypt_decrypt() {
+        let msg = b"test xoodyak160";
+        let key = generate("XOODYAK-160");
+
+        let enc_state = symmetric_state_open("XOODYAK-160", Some(&key), None).unwrap();
+        let ciphertext = symmetric_state_encrypt(&enc_state, msg).unwrap();
+
+        let dec_state = symmetric_state_open("XOODYAK-160", Some(&key), None).unwrap();
+        let plaintext = symmetric_state_decrypt(&dec_state, &ciphertext, msg.len() as u32).unwrap();
+        assert_eq!(plaintext, msg);
+        symmetric_key_close(key).unwrap();
+    }
 }

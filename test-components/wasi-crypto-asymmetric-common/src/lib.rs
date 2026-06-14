@@ -243,4 +243,48 @@ mod tests {
             Err(e) => panic!("unexpected error: {e:?}"),
         }
     }
+
+    // ── keypair_import: additional algorithm coverage ─────────────────────────
+
+    #[test]
+    fn keypair_import_ecdsa_p256_raw() {
+        let kp = keypair_generate(AlgorithmType::Signatures, "ECDSA_P256_SHA256", None).unwrap();
+        let raw = array_output_pull(&keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
+        let kp2 = keypair_import(AlgorithmType::Signatures, "ECDSA_P256_SHA256", &raw, KeypairEncoding::Raw).unwrap();
+        keypair_close(kp).unwrap();
+        keypair_close(kp2).unwrap();
+    }
+
+    #[test]
+    fn keypair_import_ecdsa_p384_raw() {
+        let kp = keypair_generate(AlgorithmType::Signatures, "ECDSA_P384_SHA384", None).unwrap();
+        let raw = array_output_pull(&keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
+        let kp2 = keypair_import(AlgorithmType::Signatures, "ECDSA_P384_SHA384", &raw, KeypairEncoding::Raw).unwrap();
+        keypair_close(kp).unwrap();
+        keypair_close(kp2).unwrap();
+    }
+
+    // ── publickey_import: ECDSA compressed-point (Raw = compressed SEC1) ──────
+
+    #[test]
+    fn publickey_export_import_ecdsa_p256_raw() {
+        let kp = keypair_generate(AlgorithmType::Signatures, "ECDSA_P256_SHA256", None).unwrap();
+        let pk = keypair_publickey(&kp).unwrap();
+        let raw = array_output_pull(&publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
+        let pk2 = publickey_import(AlgorithmType::Signatures, "ECDSA_P256_SHA256", &raw, PublickeyEncoding::Raw).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+        publickey_close(pk2).unwrap();
+    }
+
+    #[test]
+    fn publickey_export_import_ecdsa_p384_raw() {
+        let kp = keypair_generate(AlgorithmType::Signatures, "ECDSA_P384_SHA384", None).unwrap();
+        let pk = keypair_publickey(&kp).unwrap();
+        let raw = array_output_pull(&publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
+        let pk2 = publickey_import(AlgorithmType::Signatures, "ECDSA_P384_SHA384", &raw, PublickeyEncoding::Raw).unwrap();
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+        publickey_close(pk2).unwrap();
+    }
 }

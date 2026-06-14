@@ -192,7 +192,8 @@ impl SymmetricStateLike for ChaChaPolySymmetricState {
     }
 
     fn encrypt_unchecked(&mut self, data: &[u8]) -> Result<Vec<u8>, CryptoErrno> {
-        let (out, _tag) = self.encrypt_detached_unchecked(data)?;
+        let (mut out, tag) = self.encrypt_detached_unchecked(data)?;
+        out.extend_from_slice(tag.as_ref());
         Ok(out)
     }
 
