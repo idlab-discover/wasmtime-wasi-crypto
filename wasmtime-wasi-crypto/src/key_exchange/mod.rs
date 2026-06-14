@@ -4,6 +4,8 @@ pub mod keypair;
 pub mod publickey;
 pub mod secretkey;
 
+pub use dh::{X25519PublicKeyBuilder, X25519SecretKeyBuilder};
+
 use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno;
 use crate::options::OptionsLike;
 use std::any::Any;

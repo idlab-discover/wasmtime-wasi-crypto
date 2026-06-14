@@ -2,7 +2,7 @@ use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
         AlgorithmType, CryptoErrno, PublickeyEncoding,
     },
-    key_exchange::publickey::KxPublicKey,
+    key_exchange::{KxAlgorithm, X25519PublicKeyBuilder, publickey::KxPublicKey},
     signatures::{SignatureAlgorithm, publickey::SignaturePublicKey},
 };
 use wasmtime::component::Resource;
@@ -41,7 +41,14 @@ impl PublicKey {
                 encoded,
                 encoding,
             )?)),
-            AlgorithmType::KeyExchange => return Err(CryptoErrno::NotImplemented),
+            AlgorithmType::KeyExchange => {
+                let alg = KxAlgorithm::try_from(alg_str)?;
+                let builder = match alg {
+                    KxAlgorithm::X25519 => X25519PublicKeyBuilder::new(alg),
+                    _ => return Err(CryptoErrno::NotImplemented),
+                };
+                Ok(PublicKey::KeyExchange(builder.from_raw(encoded)?))
+            }
             _ => return Err(CryptoErrno::InvalidOperation),
         }
     }

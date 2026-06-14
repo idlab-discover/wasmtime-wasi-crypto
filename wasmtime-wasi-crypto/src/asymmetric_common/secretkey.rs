@@ -3,7 +3,7 @@ use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
         AlgorithmType, CryptoErrno, SecretkeyEncoding,
     },
-    key_exchange::secretkey::KxSecretKey,
+    key_exchange::{KxAlgorithm, X25519SecretKeyBuilder, secretkey::KxSecretKey},
     signatures::secretkey::SignatureSecretKey,
 };
 
@@ -29,12 +29,22 @@ impl SecretKey {
     }
 
     pub(crate) fn import(
-        _alg_type: AlgorithmType,
-        _alg_str: &str,
-        _encoded: &[u8],
+        alg_type: AlgorithmType,
+        alg_str: &str,
+        encoded: &[u8],
         _encoding: SecretkeyEncoding,
     ) -> Result<SecretKey, CryptoErrno> {
-        return Err(CryptoErrno::NotImplemented);
+        match alg_type {
+            AlgorithmType::KeyExchange => {
+                let alg = KxAlgorithm::try_from(alg_str)?;
+                let builder = match alg {
+                    KxAlgorithm::X25519 => X25519SecretKeyBuilder::new(alg),
+                    _ => return Err(CryptoErrno::NotImplemented),
+                };
+                Ok(SecretKey::KeyExchange(builder.from_raw(encoded)?))
+            }
+            _ => return Err(CryptoErrno::NotImplemented),
+        }
     }
 
     pub(crate) fn export(&self, encoding: SecretkeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
