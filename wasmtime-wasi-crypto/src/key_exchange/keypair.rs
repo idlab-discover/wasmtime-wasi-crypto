@@ -1,3 +1,5 @@
+#[cfg(feature = "pqcrypto")]
+use crate::key_exchange::kem::{Kyber768KeyPairBuilder, Kyber1024KeyPairBuilder};
 use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::KeypairEncoding,

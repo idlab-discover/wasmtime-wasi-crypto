@@ -1,7 +1,17 @@
-use pqcrypto_kyber::{kyber1024, kyber768};
-use pqcrypto_traits::kem::*;
-
-use super::*;
+use crate::{
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
+    key_exchange::{
+        KxAlgorithm, KxOptions,
+        kem::EncapsulatedSecret,
+        keypair::{KxKeyPair, KxKeyPairBuilder, KxKeyPairLike},
+        publickey::{KxPublicKey, KxPublicKeyBuilder, KxPublicKeyLike},
+        secretkey::{KxSecretKey, KxSecretKeyBuilder, KxSecretKeyLike},
+    },
+};
+use derivative::Derivative;
+use pqcrypto_kyber::{kyber768, kyber1024};
+use pqcrypto_traits::kem::{Ciphertext, PublicKey, SecretKey, SharedSecret};
+use std::any::Any;
 
 #[derive(Clone, Derivative)]
 #[derivative(Debug)]
@@ -12,14 +22,13 @@ pub struct Kyber768PublicKey {
 }
 
 impl Kyber768PublicKey {
-    fn new(alg: KxAlgorithm, raw: &[u8]) -> Result<Self, CryptoError> {
-        ensure!(
-            raw.len() == kyber768::public_key_bytes(),
-            CryptoError::InvalidKey
-        );
+    fn new(alg: KxAlgorithm, raw: &[u8]) -> Result<Self, CryptoErrno> {
+        if !(raw.len() == kyber768::public_key_bytes()) {
+            return Err(CryptoErrno::InvalidKey);
+        };
         let mut raw_ = [0u8; kyber768::public_key_bytes()];
         raw_.copy_from_slice(raw);
-        let pq_pk = kyber768::PublicKey::from_bytes(raw).map_err(|_| CryptoError::InvalidKey)?;
+        let pq_pk = kyber768::PublicKey::from_bytes(raw).map_err(|_| CryptoErrno::InvalidKey)?;
         Ok(Kyber768PublicKey { alg, pq_pk })
     }
 }
@@ -33,14 +42,13 @@ pub struct Kyber768SecretKey {
 }
 
 impl Kyber768SecretKey {
-    fn new(alg: KxAlgorithm, raw: Vec<u8>) -> Result<Self, CryptoError> {
-        ensure!(
-            raw.len() == kyber768::secret_key_bytes(),
-            CryptoError::InvalidKey
-        );
+    fn new(alg: KxAlgorithm, raw: Vec<u8>) -> Result<Self, CryptoErrno> {
+        if !(raw.len() == kyber768::secret_key_bytes()) {
+            return Err(CryptoErrno::InvalidKey);
+        };
         let mut raw_ = [0u8; kyber768::secret_key_bytes()];
         raw_.copy_from_slice(&raw);
-        let pq_sk = kyber768::SecretKey::from_bytes(&raw).map_err(|_| CryptoError::InvalidKey)?;
+        let pq_sk = kyber768::SecretKey::from_bytes(&raw).map_err(|_| CryptoErrno::InvalidKey)?;
         Ok(Kyber768SecretKey { alg, pq_sk })
     }
 }
@@ -63,7 +71,7 @@ impl Kyber768KeyPairBuilder {
 }
 
 impl KxKeyPairBuilder for Kyber768KeyPairBuilder {
-    fn generate(&self, _options: Option<KxOptions>) -> Result<KxKeyPair, CryptoError> {
+    fn generate(&self, _options: Option<KxOptions>) -> Result<KxKeyPair, CryptoErrno> {
         let (pq_pk, pq_sk) = kyber768::keypair();
         let pk = Kyber768PublicKey {
             alg: self.alg,
@@ -89,11 +97,10 @@ pub struct Kyber768SecretKeyBuilder {
 }
 
 impl KxSecretKeyBuilder for Kyber768SecretKeyBuilder {
-    fn from_raw(&self, raw: &[u8]) -> Result<KxSecretKey, CryptoError> {
-        ensure!(
-            raw.len() == kyber768::secret_key_bytes(),
-            CryptoError::InvalidKey
-        );
+    fn from_raw(&self, raw: &[u8]) -> Result<KxSecretKey, CryptoErrno> {
+        if !(raw.len() == kyber768::secret_key_bytes()) {
+            return Err(CryptoErrno::InvalidKey);
+        };
         let sk = Kyber768SecretKey::new(self.alg, raw.to_vec())?;
         Ok(KxSecretKey::new(Box::new(sk)))
     }
@@ -110,11 +117,10 @@ pub struct Kyber768PublicKeyBuilder {
 }
 
 impl KxPublicKeyBuilder for Kyber768PublicKeyBuilder {
-    fn from_raw(&self, raw: &[u8]) -> Result<KxPublicKey, CryptoError> {
-        ensure!(
-            raw.len() == kyber768::public_key_bytes(),
-            CryptoError::InvalidKey
-        );
+    fn from_raw(&self, raw: &[u8]) -> Result<KxPublicKey, CryptoErrno> {
+        if !(raw.len() == kyber768::public_key_bytes()) {
+            return Err(CryptoErrno::InvalidKey);
+        };
         let pk = Kyber768PublicKey::new(self.alg, raw)?;
         Ok(KxPublicKey::new(Box::new(pk)))
     }
@@ -135,11 +141,11 @@ impl KxKeyPairLike for Kyber768KeyPair {
         self
     }
 
-    fn publickey(&self) -> Result<KxPublicKey, CryptoError> {
+    fn publickey(&self) -> Result<KxPublicKey, CryptoErrno> {
         Ok(KxPublicKey::new(Box::new(self.pk.clone())))
     }
 
-    fn secretkey(&self) -> Result<KxSecretKey, CryptoError> {
+    fn secretkey(&self) -> Result<KxSecretKey, CryptoErrno> {
         Ok(KxSecretKey::new(Box::new(self.sk.clone())))
     }
 }
@@ -153,19 +159,19 @@ impl KxPublicKeyLike for Kyber768PublicKey {
         self.alg
     }
 
-    fn len(&self) -> Result<usize, CryptoError> {
+    fn len(&self) -> Result<usize, CryptoErrno> {
         Ok(kyber768::public_key_bytes())
     }
 
-    fn as_raw(&self) -> Result<&[u8], CryptoError> {
+    fn as_raw(&self) -> Result<&[u8], CryptoErrno> {
         Ok(self.pq_pk.as_bytes())
     }
 
-    fn verify(&self) -> Result<(), CryptoError> {
+    fn verify(&self) -> Result<(), CryptoErrno> {
         Ok(())
     }
 
-    fn encapsulate(&self) -> Result<EncapsulatedSecret, CryptoError> {
+    fn encapsulate(&self) -> Result<EncapsulatedSecret, CryptoErrno> {
         let (secret, encapsulated_secret) = kyber768::encapsulate(&self.pq_pk);
         Ok(EncapsulatedSecret {
             secret: secret.as_bytes().to_vec(),
@@ -175,8 +181,8 @@ impl KxPublicKeyLike for Kyber768PublicKey {
 }
 
 impl Kyber768SecretKey {
-    fn kyber768_publickey(&self) -> Result<Kyber768PublicKey, CryptoError> {
-        bail!(CryptoError::UnsupportedFeature);
+    fn kyber768_publickey(&self) -> Result<Kyber768PublicKey, CryptoErrno> {
+        return Err(CryptoErrno::UnsupportedFeature);
     }
 }
 
@@ -189,21 +195,21 @@ impl KxSecretKeyLike for Kyber768SecretKey {
         self.alg
     }
 
-    fn len(&self) -> Result<usize, CryptoError> {
+    fn len(&self) -> Result<usize, CryptoErrno> {
         Ok(kyber768::secret_key_bytes())
     }
 
-    fn as_raw(&self) -> Result<&[u8], CryptoError> {
+    fn as_raw(&self) -> Result<&[u8], CryptoErrno> {
         Ok(self.pq_sk.as_bytes())
     }
 
-    fn publickey(&self) -> Result<KxPublicKey, CryptoError> {
+    fn publickey(&self) -> Result<KxPublicKey, CryptoErrno> {
         Ok(KxPublicKey::new(Box::new(self.kyber768_publickey()?)))
     }
 
-    fn decapsulate(&self, encapsulated_secret: &[u8]) -> Result<Vec<u8>, CryptoError> {
+    fn decapsulate(&self, encapsulated_secret: &[u8]) -> Result<Vec<u8>, CryptoErrno> {
         let pq_encapsulated_secret = kyber768::Ciphertext::from_bytes(encapsulated_secret)
-            .map_err(|_| CryptoError::VerificationFailed)?;
+            .map_err(|_| CryptoErrno::VerificationFailed)?;
         Ok(kyber768::decapsulate(&pq_encapsulated_secret, &self.pq_sk)
             .as_bytes()
             .to_vec())
@@ -221,14 +227,13 @@ pub struct Kyber1024PublicKey {
 }
 
 impl Kyber1024PublicKey {
-    fn new(alg: KxAlgorithm, raw: &[u8]) -> Result<Self, CryptoError> {
-        ensure!(
-            raw.len() == kyber1024::public_key_bytes(),
-            CryptoError::InvalidKey
-        );
+    fn new(alg: KxAlgorithm, raw: &[u8]) -> Result<Self, CryptoErrno> {
+        if !(raw.len() == kyber1024::public_key_bytes()) {
+            return Err(CryptoErrno::InvalidKey);
+        };
         let mut raw_ = [0u8; kyber1024::public_key_bytes()];
         raw_.copy_from_slice(raw);
-        let pq_pk = kyber1024::PublicKey::from_bytes(raw).map_err(|_| CryptoError::InvalidKey)?;
+        let pq_pk = kyber1024::PublicKey::from_bytes(raw).map_err(|_| CryptoErrno::InvalidKey)?;
         Ok(Kyber1024PublicKey { alg, pq_pk })
     }
 }
@@ -242,14 +247,13 @@ pub struct Kyber1024SecretKey {
 }
 
 impl Kyber1024SecretKey {
-    fn new(alg: KxAlgorithm, raw: Vec<u8>) -> Result<Self, CryptoError> {
-        ensure!(
-            raw.len() == kyber1024::secret_key_bytes(),
-            CryptoError::InvalidKey
-        );
+    fn new(alg: KxAlgorithm, raw: Vec<u8>) -> Result<Self, CryptoErrno> {
+        if !(raw.len() == kyber1024::secret_key_bytes()) {
+            return Err(CryptoErrno::InvalidKey);
+        };
         let mut raw_ = [0u8; kyber1024::secret_key_bytes()];
         raw_.copy_from_slice(&raw);
-        let pq_sk = kyber1024::SecretKey::from_bytes(&raw).map_err(|_| CryptoError::InvalidKey)?;
+        let pq_sk = kyber1024::SecretKey::from_bytes(&raw).map_err(|_| CryptoErrno::InvalidKey)?;
         Ok(Kyber1024SecretKey { alg, pq_sk })
     }
 }
@@ -272,7 +276,7 @@ impl Kyber1024KeyPairBuilder {
 }
 
 impl KxKeyPairBuilder for Kyber1024KeyPairBuilder {
-    fn generate(&self, _options: Option<KxOptions>) -> Result<KxKeyPair, CryptoError> {
+    fn generate(&self, _options: Option<KxOptions>) -> Result<KxKeyPair, CryptoErrno> {
         let (pq_pk, pq_sk) = kyber1024::keypair();
         let pk = Kyber1024PublicKey {
             alg: self.alg,
@@ -298,11 +302,10 @@ pub struct Kyber1024SecretKeyBuilder {
 }
 
 impl KxSecretKeyBuilder for Kyber1024SecretKeyBuilder {
-    fn from_raw(&self, raw: &[u8]) -> Result<KxSecretKey, CryptoError> {
-        ensure!(
-            raw.len() == kyber1024::secret_key_bytes(),
-            CryptoError::InvalidKey
-        );
+    fn from_raw(&self, raw: &[u8]) -> Result<KxSecretKey, CryptoErrno> {
+        if !(raw.len() == kyber1024::secret_key_bytes()) {
+            return Err(CryptoErrno::InvalidKey);
+        };
         let sk = Kyber1024SecretKey::new(self.alg, raw.to_vec())?;
         Ok(KxSecretKey::new(Box::new(sk)))
     }
@@ -319,11 +322,10 @@ pub struct Kyber1024PublicKeyBuilder {
 }
 
 impl KxPublicKeyBuilder for Kyber1024PublicKeyBuilder {
-    fn from_raw(&self, raw: &[u8]) -> Result<KxPublicKey, CryptoError> {
-        ensure!(
-            raw.len() == kyber1024::public_key_bytes(),
-            CryptoError::InvalidKey
-        );
+    fn from_raw(&self, raw: &[u8]) -> Result<KxPublicKey, CryptoErrno> {
+        if !(raw.len() == kyber1024::public_key_bytes()) {
+            return Err(CryptoErrno::InvalidKey);
+        };
         let pk = Kyber1024PublicKey::new(self.alg, raw)?;
         Ok(KxPublicKey::new(Box::new(pk)))
     }
@@ -344,11 +346,11 @@ impl KxKeyPairLike for Kyber1024KeyPair {
         self
     }
 
-    fn publickey(&self) -> Result<KxPublicKey, CryptoError> {
+    fn publickey(&self) -> Result<KxPublicKey, CryptoErrno> {
         Ok(KxPublicKey::new(Box::new(self.pk.clone())))
     }
 
-    fn secretkey(&self) -> Result<KxSecretKey, CryptoError> {
+    fn secretkey(&self) -> Result<KxSecretKey, CryptoErrno> {
         Ok(KxSecretKey::new(Box::new(self.sk.clone())))
     }
 }
@@ -362,19 +364,19 @@ impl KxPublicKeyLike for Kyber1024PublicKey {
         self.alg
     }
 
-    fn len(&self) -> Result<usize, CryptoError> {
+    fn len(&self) -> Result<usize, CryptoErrno> {
         Ok(kyber1024::public_key_bytes())
     }
 
-    fn as_raw(&self) -> Result<&[u8], CryptoError> {
+    fn as_raw(&self) -> Result<&[u8], CryptoErrno> {
         Ok(self.pq_pk.as_bytes())
     }
 
-    fn verify(&self) -> Result<(), CryptoError> {
+    fn verify(&self) -> Result<(), CryptoErrno> {
         Ok(())
     }
 
-    fn encapsulate(&self) -> Result<EncapsulatedSecret, CryptoError> {
+    fn encapsulate(&self) -> Result<EncapsulatedSecret, CryptoErrno> {
         let (secret, encapsulated_secret) = kyber1024::encapsulate(&self.pq_pk);
         Ok(EncapsulatedSecret {
             secret: secret.as_bytes().to_vec(),
@@ -384,8 +386,8 @@ impl KxPublicKeyLike for Kyber1024PublicKey {
 }
 
 impl Kyber1024SecretKey {
-    fn kyber1024_publickey(&self) -> Result<Kyber1024PublicKey, CryptoError> {
-        bail!(CryptoError::UnsupportedFeature);
+    fn kyber1024_publickey(&self) -> Result<Kyber1024PublicKey, CryptoErrno> {
+        return Err(CryptoErrno::UnsupportedFeature);
     }
 }
 
@@ -398,21 +400,21 @@ impl KxSecretKeyLike for Kyber1024SecretKey {
         self.alg
     }
 
-    fn len(&self) -> Result<usize, CryptoError> {
+    fn len(&self) -> Result<usize, CryptoErrno> {
         Ok(kyber1024::secret_key_bytes())
     }
 
-    fn as_raw(&self) -> Result<&[u8], CryptoError> {
+    fn as_raw(&self) -> Result<&[u8], CryptoErrno> {
         Ok(self.pq_sk.as_bytes())
     }
 
-    fn publickey(&self) -> Result<KxPublicKey, CryptoError> {
+    fn publickey(&self) -> Result<KxPublicKey, CryptoErrno> {
         Ok(KxPublicKey::new(Box::new(self.kyber1024_publickey()?)))
     }
 
-    fn decapsulate(&self, encapsulated_secret: &[u8]) -> Result<Vec<u8>, CryptoError> {
+    fn decapsulate(&self, encapsulated_secret: &[u8]) -> Result<Vec<u8>, CryptoErrno> {
         let pq_encapsulated_secret = kyber1024::Ciphertext::from_bytes(encapsulated_secret)
-            .map_err(|_| CryptoError::VerificationFailed)?;
+            .map_err(|_| CryptoErrno::VerificationFailed)?;
         Ok(kyber1024::decapsulate(&pq_encapsulated_secret, &self.pq_sk)
             .as_bytes()
             .to_vec())
