@@ -513,4 +513,10 @@ impl EcdsaSignaturePublicKey {
             _ => Err(CryptoErrno::UnsupportedEncoding),
         }
     }
+
+    pub(crate) fn verify(&self) -> Result<(), CryptoErrno> {
+        // Import validates point-on-curve and non-identity via from_sec1_bytes;
+        // no stricter check is available through the p256/k256/p384 public API.
+        Ok(())
+    }
 }

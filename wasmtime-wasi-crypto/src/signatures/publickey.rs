@@ -51,18 +51,10 @@ impl SignaturePublicKey {
     }
 
     pub(crate) fn verify(pk: &SignaturePublicKey) -> Result<(), CryptoErrno> {
-        // The import path already validated the key (point-on-curve checks for
-        // ECDSA via the p256/k256/p384 constructors, length/format checks for
-        // EdDSA, and modulus/exponent checks for RSA via BoringSSL).  Per the
-        // wasi-crypto spec, publickey_verify "may perform stricter checks than
-        // those made during importation"; for all three algorithm families in
-        // this implementation the import-time checks are already sufficient, so
-        // we confirm validity by returning Ok(()) for every successfully-imported
-        // key.
         match pk {
-            SignaturePublicKey::Ecdsa(_) => Ok(()),
-            SignaturePublicKey::Eddsa(_) => Ok(()),
-            SignaturePublicKey::Rsa(_) => Ok(()),
+            SignaturePublicKey::Ecdsa(pk) => pk.verify(),
+            SignaturePublicKey::Eddsa(pk) => pk.verify(),
+            SignaturePublicKey::Rsa(pk) => pk.verify(),
         }
     }
 }

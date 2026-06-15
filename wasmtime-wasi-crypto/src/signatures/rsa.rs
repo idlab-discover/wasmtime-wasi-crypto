@@ -455,4 +455,13 @@ impl RsaSignaturePublicKey {
             _ => Err(CryptoErrno::UnsupportedEncoding),
         }
     }
+
+    pub(crate) fn verify(&self) -> Result<(), CryptoErrno> {
+        // check_key is only available on Rsa<Private>.  The strongest
+        // validation available on a public key is a DER round-trip: export then
+        // re-import so BoringSSL re-parses and validates the ASN.1 structure.
+        let der = self.ctx.public_key_to_der().map_err(|_| CryptoErrno::InvalidKey)?;
+        rsa::Rsa::public_key_from_der(&der).map_err(|_| CryptoErrno::InvalidKey)?;
+        Ok(())
+    }
 }

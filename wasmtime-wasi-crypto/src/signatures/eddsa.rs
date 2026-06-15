@@ -215,4 +215,13 @@ impl EddsaSignaturePublicKey {
             _ => Err(CryptoErrno::UnsupportedEncoding),
         }
     }
+
+    pub(crate) fn verify(&self) -> Result<(), CryptoErrno> {
+        // import (from_slice) only checks the length.  Re-encode to DER and
+        // re-import to trigger the full point decompression and curve check
+        // performed by from_der.
+        let der = self.ctx.to_der();
+        ed25519_compact::PublicKey::from_der(&der).map_err(|_| CryptoErrno::InvalidKey)?;
+        Ok(())
+    }
 }
