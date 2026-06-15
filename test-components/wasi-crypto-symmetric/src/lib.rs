@@ -55,7 +55,7 @@ mod tests {
         let key = import("HMAC/SHA-256", b"0123456789abcdef0123456789abcdef");
         let array_out = symmetric_key_export(&key).unwrap();
         let bytes =
-            crate::wasi::crypto::wasi_ephemeral_crypto_common::array_output_pull(&array_out)
+            crate::wasi::crypto::wasi_ephemeral_crypto_common::array_output_pull(array_out)
                 .unwrap();
         assert_eq!(bytes, b"0123456789abcdef0123456789abcdef");
     }
@@ -66,7 +66,7 @@ mod tests {
         let key = import("HMAC/SHA-256", raw);
         let array_out = symmetric_key_export(&key).unwrap();
         let exported =
-            crate::wasi::crypto::wasi_ephemeral_crypto_common::array_output_pull(&array_out)
+            crate::wasi::crypto::wasi_ephemeral_crypto_common::array_output_pull(array_out)
                 .unwrap();
         assert_eq!(exported.as_slice(), raw.as_slice());
         symmetric_key_close(key).unwrap();
@@ -133,7 +133,7 @@ mod tests {
         let clone = symmetric_state_clone(&state).unwrap();
         // Both handles share the same underlying state: verify the clone produces a valid-length tag.
         let tag_clone = symmetric_state_squeeze_tag(&clone).unwrap();
-        let raw_clone = symmetric_tag_pull(&tag_clone).unwrap();
+        let raw_clone = symmetric_tag_pull(tag_clone).unwrap();
         assert_eq!(raw_clone.len(), 32); // HMAC/SHA-256 produces 32 bytes
         symmetric_key_close(key).unwrap();
     }
@@ -170,7 +170,7 @@ mod tests {
         symmetric_state_absorb(&state, b"data").unwrap();
         symmetric_state_absorb(&state, b"more_data").unwrap();
         let tag = symmetric_state_squeeze_tag(&state).unwrap();
-        let raw = symmetric_tag_pull(&tag).unwrap();
+        let raw = symmetric_tag_pull(tag).unwrap();
         assert_eq!(raw.len(), 64); // HMAC/SHA-512 produces 64 bytes
         symmetric_key_close(key).unwrap();
     }
@@ -196,7 +196,7 @@ mod tests {
         symmetric_state_absorb(&state, b"data").unwrap();
         symmetric_state_absorb(&state, b"more_data").unwrap();
         let tag = symmetric_state_squeeze_tag(&state).unwrap();
-        let expected = symmetric_tag_pull(&tag).unwrap();
+        let expected = symmetric_tag_pull(tag).unwrap();
 
         // Verify against the same input.
         let state2 = symmetric_state_open("HMAC/SHA-512", Some(&key), None).unwrap();
@@ -240,13 +240,13 @@ mod tests {
         let state = open("HMAC/SHA-256", Some(&key));
         symmetric_state_absorb(&state, b"context").unwrap();
         let tag = symmetric_state_squeeze_tag(&state).unwrap();
-        let raw = symmetric_tag_pull(&tag).unwrap();
+        let raw = symmetric_tag_pull(tag).unwrap();
         assert_eq!(raw.len(), 32); // HMAC/SHA-256 tag is 32 bytes
         // Repeat with different input — must produce a different tag.
         let state2 = open("HMAC/SHA-256", Some(&key));
         symmetric_state_absorb(&state2, b"other_context").unwrap();
         let tag2 = symmetric_state_squeeze_tag(&state2).unwrap();
-        let raw2 = symmetric_tag_pull(&tag2).unwrap();
+        let raw2 = symmetric_tag_pull(tag2).unwrap();
         assert_ne!(raw, raw2);
         symmetric_key_close(key).unwrap();
     }
@@ -359,7 +359,7 @@ mod tests {
         let enc_state = symmetric_state_open("AES-256-GCM", Some(&key), Some(&opts)).unwrap();
         options_close(opts).unwrap();
         let (ciphertext, tag) = symmetric_state_encrypt_detached(&enc_state, message).unwrap();
-        let raw_tag = symmetric_tag_pull(&tag).unwrap();
+        let raw_tag = symmetric_tag_pull(tag).unwrap();
 
         let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
         options_set(&opts2, "nonce", &nonce).unwrap();
@@ -608,7 +608,7 @@ mod tests {
         let key = generate("CHACHA20-POLY1305");
         let raw = {
             let ao = symmetric_key_export(&key).unwrap();
-            crate::wasi::crypto::wasi_ephemeral_crypto_common::array_output_pull(&ao).unwrap()
+            crate::wasi::crypto::wasi_ephemeral_crypto_common::array_output_pull(ao).unwrap()
         };
         assert_eq!(raw.len(), 32, "ChaCha20-Poly1305 key is 32 bytes");
         symmetric_key_close(key).unwrap();
@@ -651,7 +651,7 @@ mod tests {
         let enc_state = symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
         options_close(opts).unwrap();
         let (ciphertext, tag) = symmetric_state_encrypt_detached(&enc_state, message).unwrap();
-        let raw_tag = symmetric_tag_pull(&tag).unwrap();
+        let raw_tag = symmetric_tag_pull(tag).unwrap();
 
         let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
         options_set(&opts2, "nonce", &nonce).unwrap();
@@ -728,7 +728,7 @@ mod tests {
         let state = symmetric_state_open("XOODYAK-128", Some(&key), None).unwrap();
         symmetric_state_absorb(&state, b"data").unwrap();
         let tag = symmetric_state_squeeze_tag(&state).unwrap();
-        let raw = symmetric_tag_pull(&tag).unwrap();
+        let raw = symmetric_tag_pull(tag).unwrap();
         assert!(!raw.is_empty());
         symmetric_key_close(key).unwrap();
     }

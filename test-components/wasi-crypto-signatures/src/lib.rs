@@ -52,7 +52,7 @@ mod tests {
         signature_state_close(state).unwrap();
         let array_out = signature_export(&sig, SignatureEncoding::Raw).unwrap();
         signature_close(sig).unwrap();
-        array_output_pull(&array_out).unwrap()
+        array_output_pull(array_out).unwrap()
     }
 
     /// Verify `raw_sig` over `msg` with `pk`. Returns the result directly so
@@ -110,12 +110,12 @@ mod tests {
 
         signature_state_update(&state, b"message").unwrap();
         let sig1 = signature_state_sign(&state).unwrap();
-        let raw1 = array_output_pull(&signature_export(&sig1, SignatureEncoding::Raw).unwrap()).unwrap();
+        let raw1 = array_output_pull(signature_export(&sig1, SignatureEncoding::Raw).unwrap()).unwrap();
         signature_close(sig1).unwrap();
 
         signature_state_update(&state, b"message").unwrap();
         let sig2 = signature_state_sign(&state).unwrap();
-        let raw2 = array_output_pull(&signature_export(&sig2, SignatureEncoding::Raw).unwrap()).unwrap();
+        let raw2 = array_output_pull(signature_export(&sig2, SignatureEncoding::Raw).unwrap()).unwrap();
         signature_close(sig2).unwrap();
 
         // Both signatures must verify — Ed25519 is deterministic so they will
@@ -141,7 +141,7 @@ mod tests {
         signature_state_update(&state, b"message part 2").unwrap();
         let raw_incremental = {
             let sig = signature_state_sign(&state).unwrap();
-            let bytes = array_output_pull(&signature_export(&sig, SignatureEncoding::Raw).unwrap()).unwrap();
+            let bytes = array_output_pull(signature_export(&sig, SignatureEncoding::Raw).unwrap()).unwrap();
             signature_close(sig).unwrap();
             bytes
         };
@@ -188,7 +188,7 @@ mod tests {
 
         // Export + re-import public key via Raw encoding
         let pk_raw =
-            array_output_pull(&publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
+            array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
         let pk2 = publickey_import(
             AlgorithmType::Signatures,
             alg,
@@ -199,7 +199,7 @@ mod tests {
 
         // Export + re-import keypair via Raw encoding
         let kp_raw =
-            array_output_pull(&keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
+            array_output_pull(keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
         let kp2 = keypair_import(
             AlgorithmType::Signatures,
             alg,
@@ -228,7 +228,7 @@ mod tests {
         // DER encoding is not supported by the WITX 0.10 reference implementation.
         let sig = signature_import(alg, &raw_sig, SignatureEncoding::Raw).unwrap();
         let exported =
-            array_output_pull(&signature_export(&sig, SignatureEncoding::Raw).unwrap()).unwrap();
+            array_output_pull(signature_export(&sig, SignatureEncoding::Raw).unwrap()).unwrap();
         let sig2 = signature_import(alg, &exported, SignatureEncoding::Raw).unwrap();
 
         let state = signature_verification_state_open(&pk).unwrap();
@@ -282,7 +282,7 @@ mod tests {
 
         // RSA public key via Local encoding (PKCS#8/DER)
         let pk_raw =
-            array_output_pull(&publickey_export(&pk, PublickeyEncoding::Local).unwrap()).unwrap();
+            array_output_pull(publickey_export(&pk, PublickeyEncoding::Local).unwrap()).unwrap();
         let pk2 = publickey_import(
             AlgorithmType::Signatures,
             alg,
@@ -292,7 +292,7 @@ mod tests {
         .unwrap();
 
         let kp_raw =
-            array_output_pull(&keypair_export(&kp, KeypairEncoding::Local).unwrap()).unwrap();
+            array_output_pull(keypair_export(&kp, KeypairEncoding::Local).unwrap()).unwrap();
         let kp2 = keypair_import(
             AlgorithmType::Signatures,
             alg,
@@ -389,10 +389,10 @@ mod tests {
         let alg = "ECDSA_P384_SHA384";
         let (kp, pk) = generate_kp(alg);
 
-        let pk_raw = array_output_pull(&publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
+        let pk_raw = array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
         let pk2 = publickey_import(AlgorithmType::Signatures, alg, &pk_raw, PublickeyEncoding::Raw).unwrap();
 
-        let kp_raw = array_output_pull(&keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
+        let kp_raw = array_output_pull(keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
         let kp2 = keypair_import(AlgorithmType::Signatures, alg, &kp_raw, KeypairEncoding::Raw).unwrap();
 
         let raw_sig = sign(&kp2, b"test");
@@ -605,7 +605,7 @@ mod tests {
         signature_state_close(state).unwrap();
 
         let raw_bytes =
-            array_output_pull(&signature_export(&sig, SignatureEncoding::Raw).unwrap()).unwrap();
+            array_output_pull(signature_export(&sig, SignatureEncoding::Raw).unwrap()).unwrap();
         assert_eq!(raw_bytes.len(), 64, "Ed25519 raw signature must be 64 bytes");
 
         // Re-import and verify to confirm the bytes are valid
@@ -633,13 +633,13 @@ mod tests {
         let state = signature_state_open(&kp).unwrap();
         signature_state_update(&state, b"first message").unwrap();
         let sig1 = signature_state_sign(&state).unwrap();
-        let raw1 = array_output_pull(&signature_export(&sig1, SignatureEncoding::Raw).unwrap()).unwrap();
+        let raw1 = array_output_pull(signature_export(&sig1, SignatureEncoding::Raw).unwrap()).unwrap();
         signature_close(sig1).unwrap();
 
         // Second sign cycle on the same state handle
         signature_state_update(&state, b"second message").unwrap();
         let sig2 = signature_state_sign(&state).unwrap();
-        let raw2 = array_output_pull(&signature_export(&sig2, SignatureEncoding::Raw).unwrap()).unwrap();
+        let raw2 = array_output_pull(signature_export(&sig2, SignatureEncoding::Raw).unwrap()).unwrap();
         signature_close(sig2).unwrap();
 
         // Both must verify

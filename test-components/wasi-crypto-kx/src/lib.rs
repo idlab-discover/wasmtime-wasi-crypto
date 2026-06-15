@@ -48,8 +48,8 @@ mod tests {
         let (kp1, pk1, sk1) = generate_kp("X25519");
         let (kp2, pk2, sk2) = generate_kp("X25519");
 
-        let ss1 = array_output_pull(&kx_dh(&pk2, &sk1).unwrap()).unwrap();
-        let ss2 = array_output_pull(&kx_dh(&pk1, &sk2).unwrap()).unwrap();
+        let ss1 = array_output_pull(kx_dh(&pk2, &sk1).unwrap()).unwrap();
+        let ss2 = array_output_pull(kx_dh(&pk1, &sk2).unwrap()).unwrap();
 
         assert_eq!(ss1, ss2, "DH shared secrets must be equal");
         assert_eq!(ss1.len(), 32, "X25519 shared secret is 32 bytes");
@@ -86,27 +86,27 @@ mod tests {
         let (kp, pk, sk) = generate_kp("X25519");
 
         // Export keypair as Raw, re-import, generate the same shared secret.
-        let kp_raw = array_output_pull(&keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
+        let kp_raw = array_output_pull(keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
         assert!(!kp_raw.is_empty());
 
         // Export public key as Raw, re-import.
-        let pk_raw = array_output_pull(&publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
+        let pk_raw = array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
         assert_eq!(pk_raw.len(), 32, "X25519 public key is 32 bytes");
         let pk2 = publickey_import(AlgorithmType::KeyExchange, "X25519", &pk_raw, PublickeyEncoding::Raw).unwrap();
 
         // Export secret key as Raw, re-import.
-        let sk_raw = array_output_pull(&secretkey_export(&sk, SecretkeyEncoding::Raw).unwrap()).unwrap();
+        let sk_raw = array_output_pull(secretkey_export(&sk, SecretkeyEncoding::Raw).unwrap()).unwrap();
         assert_eq!(sk_raw.len(), 32, "X25519 secret key is 32 bytes");
         let sk2 = secretkey_import(AlgorithmType::KeyExchange, "X25519", &sk_raw, SecretkeyEncoding::Raw).unwrap();
 
         // Generate a second keypair and verify DH with re-imported keys gives same result.
         let (kp3, pk3, sk3) = generate_kp("X25519");
-        let ss_orig = array_output_pull(&kx_dh(&pk3, &sk).unwrap()).unwrap();
-        let ss_reimport = array_output_pull(&kx_dh(&pk3, &sk2).unwrap()).unwrap();
+        let ss_orig = array_output_pull(kx_dh(&pk3, &sk).unwrap()).unwrap();
+        let ss_reimport = array_output_pull(kx_dh(&pk3, &sk2).unwrap()).unwrap();
         assert_eq!(ss_orig, ss_reimport, "re-imported secret key must produce same DH result");
 
-        let ss_orig2 = array_output_pull(&kx_dh(&pk, &sk3).unwrap()).unwrap();
-        let ss_reimport2 = array_output_pull(&kx_dh(&pk2, &sk3).unwrap()).unwrap();
+        let ss_orig2 = array_output_pull(kx_dh(&pk, &sk3).unwrap()).unwrap();
+        let ss_reimport2 = array_output_pull(kx_dh(&pk2, &sk3).unwrap()).unwrap();
         assert_eq!(ss_orig2, ss_reimport2, "re-imported public key must produce same DH result");
 
         keypair_close(kp).unwrap();
@@ -161,11 +161,11 @@ mod tests {
         let (kp, pk, sk) = generate_kp("KYBER-768");
 
         let (secret_ao, encapsulated_ao) = kx_encapsulate(&pk).unwrap();
-        let secret = array_output_pull(&secret_ao).unwrap();
-        let encapsulated = array_output_pull(&encapsulated_ao).unwrap();
+        let secret = array_output_pull(secret_ao).unwrap();
+        let encapsulated = array_output_pull(encapsulated_ao).unwrap();
 
         let decapsulated_ao = kx_decapsulate(&sk, &encapsulated).unwrap();
-        let decapsulated = array_output_pull(&decapsulated_ao).unwrap();
+        let decapsulated = array_output_pull(decapsulated_ao).unwrap();
 
         assert_eq!(secret, decapsulated, "KEM encapsulate/decapsulate must agree");
 
@@ -189,8 +189,8 @@ mod tests {
         // we generate two X25519 keypairs and verify DH is symmetric.
         let (kp1, pk1, sk1) = generate_kp("X25519");
         let (kp2, pk2, sk2) = generate_kp("X25519");
-        let ss_fwd = array_output_pull(&kx_dh(&pk2, &sk1).unwrap()).unwrap();
-        let ss_rev = array_output_pull(&kx_dh(&pk1, &sk2).unwrap()).unwrap();
+        let ss_fwd = array_output_pull(kx_dh(&pk2, &sk1).unwrap()).unwrap();
+        let ss_rev = array_output_pull(kx_dh(&pk1, &sk2).unwrap()).unwrap();
         assert_eq!(ss_fwd, ss_rev);
         keypair_close(kp1).unwrap();
         keypair_close(kp2).unwrap();

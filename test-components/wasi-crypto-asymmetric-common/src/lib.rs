@@ -53,7 +53,7 @@ mod tests {
     #[test]
     fn keypair_export_import_ed25519_raw() {
         let kp = keypair_generate(AlgorithmType::Signatures, "Ed25519", None).unwrap();
-        let raw = array_output_pull(&keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
+        let raw = array_output_pull(keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
         assert!(!raw.is_empty());
         let kp2 = keypair_import(AlgorithmType::Signatures, "Ed25519", &raw, KeypairEncoding::Raw).unwrap();
         keypair_close(kp).unwrap();
@@ -155,7 +155,7 @@ mod tests {
         let kp = keypair_generate(AlgorithmType::Signatures, "Ed25519", None).unwrap();
         let pk = keypair_publickey(&kp).unwrap();
 
-        let raw = array_output_pull(&publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
+        let raw = array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
         assert_eq!(raw.len(), 32, "Ed25519 public key is 32 bytes");
 
         let pk2 = publickey_import(AlgorithmType::Signatures, "Ed25519", &raw, PublickeyEncoding::Raw).unwrap();
@@ -170,7 +170,7 @@ mod tests {
         let kp = keypair_generate(AlgorithmType::KeyExchange, "X25519", None).unwrap();
         let pk = keypair_publickey(&kp).unwrap();
 
-        let raw = array_output_pull(&publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
+        let raw = array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
         assert_eq!(raw.len(), 32, "X25519 public key is 32 bytes");
 
         let pk2 = publickey_import(AlgorithmType::KeyExchange, "X25519", &raw, PublickeyEncoding::Raw).unwrap();
@@ -212,7 +212,7 @@ mod tests {
         let kp = keypair_generate(AlgorithmType::KeyExchange, "X25519", None).unwrap();
         let sk = keypair_secretkey(&kp).unwrap();
 
-        let raw = array_output_pull(&secretkey_export(&sk, SecretkeyEncoding::Raw).unwrap()).unwrap();
+        let raw = array_output_pull(secretkey_export(&sk, SecretkeyEncoding::Raw).unwrap()).unwrap();
         assert_eq!(raw.len(), 32, "X25519 secret key is 32 bytes");
 
         keypair_close(kp).unwrap();
@@ -223,7 +223,7 @@ mod tests {
     fn secretkey_import_x25519_raw() {
         let kp = keypair_generate(AlgorithmType::KeyExchange, "X25519", None).unwrap();
         let sk = keypair_secretkey(&kp).unwrap();
-        let raw = array_output_pull(&secretkey_export(&sk, SecretkeyEncoding::Raw).unwrap()).unwrap();
+        let raw = array_output_pull(secretkey_export(&sk, SecretkeyEncoding::Raw).unwrap()).unwrap();
 
         let sk2 = secretkey_import(AlgorithmType::KeyExchange, "X25519", &raw, SecretkeyEncoding::Raw).unwrap();
 
@@ -249,7 +249,7 @@ mod tests {
     #[test]
     fn keypair_import_ecdsa_p256_raw() {
         let kp = keypair_generate(AlgorithmType::Signatures, "ECDSA_P256_SHA256", None).unwrap();
-        let raw = array_output_pull(&keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
+        let raw = array_output_pull(keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
         let kp2 = keypair_import(AlgorithmType::Signatures, "ECDSA_P256_SHA256", &raw, KeypairEncoding::Raw).unwrap();
         keypair_close(kp).unwrap();
         keypair_close(kp2).unwrap();
@@ -258,7 +258,7 @@ mod tests {
     #[test]
     fn keypair_import_ecdsa_p384_raw() {
         let kp = keypair_generate(AlgorithmType::Signatures, "ECDSA_P384_SHA384", None).unwrap();
-        let raw = array_output_pull(&keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
+        let raw = array_output_pull(keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
         let kp2 = keypair_import(AlgorithmType::Signatures, "ECDSA_P384_SHA384", &raw, KeypairEncoding::Raw).unwrap();
         keypair_close(kp).unwrap();
         keypair_close(kp2).unwrap();
@@ -270,7 +270,7 @@ mod tests {
     fn publickey_export_import_ecdsa_p256_raw() {
         let kp = keypair_generate(AlgorithmType::Signatures, "ECDSA_P256_SHA256", None).unwrap();
         let pk = keypair_publickey(&kp).unwrap();
-        let raw = array_output_pull(&publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
+        let raw = array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
         let pk2 = publickey_import(AlgorithmType::Signatures, "ECDSA_P256_SHA256", &raw, PublickeyEncoding::Raw).unwrap();
         keypair_close(kp).unwrap();
         publickey_close(pk).unwrap();
@@ -281,7 +281,7 @@ mod tests {
     fn publickey_export_import_ecdsa_p384_raw() {
         let kp = keypair_generate(AlgorithmType::Signatures, "ECDSA_P384_SHA384", None).unwrap();
         let pk = keypair_publickey(&kp).unwrap();
-        let raw = array_output_pull(&publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
+        let raw = array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
         let pk2 = publickey_import(AlgorithmType::Signatures, "ECDSA_P384_SHA384", &raw, PublickeyEncoding::Raw).unwrap();
         keypair_close(kp).unwrap();
         publickey_close(pk).unwrap();

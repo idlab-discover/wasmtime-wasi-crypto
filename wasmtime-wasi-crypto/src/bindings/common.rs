@@ -206,7 +206,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         array_output: wasmtime::component::Resource<ArrayOutput>,
     ) -> Result<wasmtime::component::__internal::Vec<u8>, CryptoErrno> {
-        let array_output_value = self.table.get(&array_output)?;
+        let array_output_value: crate::array_output::ArrayOutput = self.table.delete(array_output)?;
         let len = array_output_value.len();
         let mut output = vec![0u8; len];
         array_output_value.pull(&mut output)?;
