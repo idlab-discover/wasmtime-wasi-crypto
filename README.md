@@ -20,11 +20,13 @@ Each test component must be compiled for `wasm32-wasip2` and run via `wasmtime-h
 cargo test -p wasi-crypto-common --target wasm32-wasip2
 cargo test -p wasi-crypto-symmetric --target wasm32-wasip2
 cargo test -p wasi-crypto-signatures --target wasm32-wasip2
+cargo test -p wasi-crypto-kx --target wasm32-wasip2
+cargo test -p wasi-crypto-asymmetric-common --target wasm32-wasip2
 ```
 
 The `.cargo/config.toml` runner wires `cargo test --target wasm32-wasip2` to `wasmtime-host test` automatically.
 
 ## Documentation
 
-- [`docs/architecture.md`](docs/architecture.md) — WIT→bindgen→host trait→crypto pipeline, resource lifecycle, options system
-- [`docs/modules.md`](docs/modules.md) — per-module algorithm tables, options, test coverage, known gaps
+- [`docs/architecture.md`](docs/architecture.md): WIT→bindgen→host trait→crypto pipeline, resource lifecycle, options system
+- [`docs/modules.md`](docs/modules.md): per-module algorithm tables, options, test coverage, known gaps
