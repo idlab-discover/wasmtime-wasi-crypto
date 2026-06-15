@@ -113,24 +113,28 @@ impl SignatureLike for EddsaSignature {
 pub struct EddsaSignatureState {
     pub kp: EddsaSignatureKeyPair,
     pub st: ed25519_compact::SigningState,
+    pub signed: bool,
 }
 
 impl EddsaSignatureState {
     pub fn new(kp: EddsaSignatureKeyPair) -> Self {
         let st = kp.ctx.sk.sign_incremental(Default::default());
-        EddsaSignatureState { kp, st }
+        EddsaSignatureState { kp, st, signed: false }
     }
 }
 
 impl SignatureStateLike for EddsaSignatureState {
     fn update(&mut self, input: &[u8]) -> Result<(), CryptoErrno> {
+        if self.signed {
+            return Err(CryptoErrno::UnsupportedFeature);
+        }
         self.st.absorb(input);
         Ok(())
     }
 
     fn sign(&mut self) -> Result<Signature, CryptoErrno> {
         let signature_u8 = self.st.sign().to_vec();
-        self.st = self.kp.ctx.sk.sign_incremental(Default::default());
+        self.signed = true;
         let signature = EddsaSignature::new(signature_u8);
         Ok(Signature::new(Box::new(signature)))
     }

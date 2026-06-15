@@ -103,8 +103,9 @@ mod tests {
     }
 
     #[test]
-    fn ed25519_state_reuse_produces_valid_signatures() {
-        // signature_state is not closed after sign() — reuse is explicitly supported.
+    fn ed25519_sign_twice_returns_same_signature() {
+        // Calling sign() twice on the same state (without any update in between)
+        // must succeed and return the same bytes — the state is not invalidated.
         let (kp, pk) = generate_kp("Ed25519");
         let state = signature_state_open(&kp).unwrap();
 
@@ -113,19 +114,36 @@ mod tests {
         let raw1 = array_output_pull(signature_export(&sig1, SignatureEncoding::Raw).unwrap()).unwrap();
         signature_close(sig1).unwrap();
 
-        signature_state_update(&state, b"message").unwrap();
         let sig2 = signature_state_sign(&state).unwrap();
         let raw2 = array_output_pull(signature_export(&sig2, SignatureEncoding::Raw).unwrap()).unwrap();
         signature_close(sig2).unwrap();
 
-        // Both signatures must verify — Ed25519 is deterministic so they will
-        // also be equal, but we assert correctness not determinism here.
+        // Ed25519 is deterministic; both calls must return identical bytes.
+        assert_eq!(raw1, raw2);
+        // And the signature must verify against the original message.
         verify_raw(&pk, b"message", "Ed25519", &raw1, SignatureEncoding::Raw).unwrap();
-        verify_raw(&pk, b"message", "Ed25519", &raw2, SignatureEncoding::Raw).unwrap();
 
         signature_state_close(state).unwrap();
         keypair_close(kp).unwrap();
         publickey_close(pk).unwrap();
+    }
+
+    #[test]
+    fn ed25519_update_after_sign_returns_unsupported_feature() {
+        // Pure Ed25519 does not support incremental re-feeding after sign().
+        // A subsequent update() call must return UnsupportedFeature.
+        let (kp, _pk) = generate_kp("Ed25519");
+        let state = signature_state_open(&kp).unwrap();
+
+        signature_state_update(&state, b"message").unwrap();
+        let sig = signature_state_sign(&state).unwrap();
+        signature_close(sig).unwrap();
+
+        let err = signature_state_update(&state, b"more data").unwrap_err();
+        assert!(matches!(err, CryptoErrno::UnsupportedFeature));
+
+        signature_state_close(state).unwrap();
+        keypair_close(kp).unwrap();
     }
 
     #[test]
