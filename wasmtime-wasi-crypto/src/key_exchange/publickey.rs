@@ -45,7 +45,7 @@ impl KxPublicKey {
     pub(crate) fn export(&self, encoding: PublickeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
         match encoding {
             PublickeyEncoding::Raw => Ok(self.inner().as_raw()?.to_vec()),
-            _ => return Err(CryptoErrno::UnsupportedEncoding),
+            _ => Err(CryptoErrno::UnsupportedEncoding),
         }
     }
 
@@ -69,6 +69,6 @@ pub trait KxPublicKeyLike: Sync + Send {
     }
 
     fn encapsulate(&self) -> Result<EncapsulatedSecret, CryptoErrno> {
-        return Err(CryptoErrno::InvalidOperation);
+        Err(CryptoErrno::InvalidOperation)
     }
 }

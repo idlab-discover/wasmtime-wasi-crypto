@@ -28,11 +28,11 @@ impl OptionsLike for KxOptions {
     }
 
     fn set(&mut self, _name: &str, _value: &[u8]) -> Result<(), CryptoErrno> {
-        return Err(CryptoErrno::UnsupportedOption);
+        Err(CryptoErrno::UnsupportedOption)
     }
 
     fn set_u64(&mut self, _name: &str, _value: u64) -> Result<(), CryptoErrno> {
-        return Err(CryptoErrno::UnsupportedOption);
+        Err(CryptoErrno::UnsupportedOption)
     }
 }
 
@@ -51,7 +51,7 @@ impl TryFrom<&str> for KxAlgorithm {
             "X25519" => Ok(KxAlgorithm::X25519),
             "KYBER-768" => Ok(KxAlgorithm::Kyber768),
             "KYBER-1024" => Ok(KxAlgorithm::Kyber1024),
-            _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => Err(CryptoErrno::UnsupportedAlgorithm),
         }
     }
 }

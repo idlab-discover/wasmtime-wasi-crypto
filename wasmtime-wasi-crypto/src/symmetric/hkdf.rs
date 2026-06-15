@@ -101,7 +101,7 @@ impl SymmetricKeyBuilder for HkdfSymmetricKeyBuilder {
         match self.alg {
             SymmetricAlgorithm::HkdfSha256Expand | SymmetricAlgorithm::HkdfSha256Extract => Ok(32),
             SymmetricAlgorithm::HkdfSha512Expand | SymmetricAlgorithm::HkdfSha512Extract => Ok(64),
-            _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => Err(CryptoErrno::UnsupportedAlgorithm),
         }
     }
 }

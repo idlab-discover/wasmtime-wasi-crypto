@@ -94,7 +94,7 @@ impl SymmetricKeyBuilder for XoodyakSymmetricKeyBuilder {
         match self.alg {
             SymmetricAlgorithm::Xoodyak128 => Ok(16),
             SymmetricAlgorithm::Xoodyak160 => Ok(20),
-            _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => Err(CryptoErrno::UnsupportedAlgorithm),
         }
     }
 }
@@ -233,7 +233,7 @@ impl SymmetricStateLike for XoodyakSymmetricState {
         let mut out = vec![0u8; data.len()];
         let msg_len = data.len();
         let mut raw_tag_ = [0u8; XOODYAK_AUTH_TAG_BYTES];
-        if !(raw_tag.len() == raw_tag_.len()) {
+        if raw_tag.len() != raw_tag_.len()  {
             return Err(CryptoErrno::InvalidTag);
         };
         raw_tag_.copy_from_slice(raw_tag);

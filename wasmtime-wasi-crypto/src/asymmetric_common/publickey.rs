@@ -18,14 +18,14 @@ impl PublicKey {
     pub(crate) fn into_signature_public_key(self) -> Result<SignaturePublicKey, CryptoErrno> {
         match self {
             PublicKey::Signature(pk) => Ok(pk),
-            _ => return Err(CryptoErrno::InvalidHandle),
+            _ => Err(CryptoErrno::InvalidHandle),
         }
     }
 
     pub(crate) fn into_kx_public_key(self) -> Result<KxPublicKey, CryptoErrno> {
         match self {
             PublicKey::KeyExchange(pk) => Ok(pk),
-            _ => return Err(CryptoErrno::InvalidHandle),
+            _ => Err(CryptoErrno::InvalidHandle),
         }
     }
 
@@ -49,7 +49,7 @@ impl PublicKey {
                 };
                 Ok(PublicKey::KeyExchange(builder.from_raw(encoded)?))
             }
-            _ => return Err(CryptoErrno::InvalidOperation),
+            _ => Err(CryptoErrno::InvalidOperation),
         }
     }
 

@@ -108,7 +108,7 @@ impl SymmetricKeyBuilder for ChaChaPolySymmetricKeyBuilder {
     fn key_len(&self) -> Result<usize, CryptoErrno> {
         match self.alg {
             SymmetricAlgorithm::ChaCha20Poly1305 | SymmetricAlgorithm::XChaCha20Poly1305 => Ok(32),
-            _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => Err(CryptoErrno::UnsupportedAlgorithm),
         }
     }
 }
@@ -139,7 +139,7 @@ impl ChaChaPolySymmetricState {
                 rng.fill(options.nonce.as_mut().unwrap())?;
             }
             let nonce_vec = options.nonce.as_ref().ok_or(CryptoErrno::NonceRequired)?;
-            if !(nonce_vec.len() == expected_nonce_len) {
+            if nonce_vec.len() != expected_nonce_len  {
                 return Err(CryptoErrno::InvalidNonce);
             };
             Ok(nonce_vec.clone())

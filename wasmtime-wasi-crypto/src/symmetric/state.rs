@@ -43,11 +43,10 @@ impl SymmetricState {
         limits: &Limits,
     ) -> Result<SymmetricState, CryptoErrno> {
         let alg = SymmetricAlgorithm::try_from(alg_str)?;
-        if let Some(ref key) = key {
-            if key.alg() != alg {
+        if let Some(key) = key
+            && key.alg() != alg {
                 return Err(CryptoErrno::InvalidKey);
             }
-        }
         let (key, options) = (key.cloned(), options.cloned());
         let size_limit = limits.0.get(alg_str).copied();
         let symmetric_state = match alg {
@@ -92,18 +91,18 @@ pub trait SymmetricStateLike: Sync + Send {
     fn size_limit(&self) -> Option<usize>;
 
     fn absorb_unchecked(&mut self, _data: &[u8]) -> Result<(), CryptoErrno> {
-        return Err(CryptoErrno::InvalidOperation);
+        Err(CryptoErrno::InvalidOperation)
     }
 
     fn absorb(&mut self, data: &[u8]) -> Result<(), CryptoErrno> {
-        if !self.size_limit().is_none_or(|l| data.len() <= l) {
+        if self.size_limit().is_some_and(|l| data.len() > l) {
             return Err(CryptoErrno::Overflow);
         }
         self.absorb_unchecked(data)
     }
 
     fn squeeze_unchecked(&mut self) -> Result<Vec<u8>, CryptoErrno> {
-        return Err(CryptoErrno::InvalidOperation);
+        Err(CryptoErrno::InvalidOperation)
     }
 
     fn squeeze(&mut self) -> Result<Vec<u8>, CryptoErrno> {
@@ -114,19 +113,19 @@ pub trait SymmetricStateLike: Sync + Send {
     }
 
     fn squeeze_key(&mut self, _alg_str: &str) -> Result<SymmetricKey, CryptoErrno> {
-        return Err(CryptoErrno::InvalidOperation);
+        Err(CryptoErrno::InvalidOperation)
     }
 
     fn squeeze_tag(&mut self) -> Result<SymmetricTag, CryptoErrno> {
-        return Err(CryptoErrno::InvalidOperation);
+        Err(CryptoErrno::InvalidOperation)
     }
 
     fn max_tag_len(&mut self) -> Result<usize, CryptoErrno> {
-        return Err(CryptoErrno::InvalidOperation);
+        Err(CryptoErrno::InvalidOperation)
     }
 
     fn encrypt_unchecked(&mut self, _data: &[u8]) -> Result<Vec<u8>, CryptoErrno> {
-        return Err(CryptoErrno::InvalidOperation);
+        Err(CryptoErrno::InvalidOperation)
     }
 
     fn encrypt(&mut self, data: &[u8]) -> Result<Vec<u8>, CryptoErrno> {
@@ -138,7 +137,7 @@ pub trait SymmetricStateLike: Sync + Send {
         // {
         //     return Err(CryptoErrno::InvalidLength);
         // }
-        if !(self.size_limit().is_none_or(|l| data.len() <= l)) {
+        if self.size_limit().is_some_and(|l| data.len() > l) {
             return Err(CryptoErrno::Overflow);
         }
         self.encrypt_unchecked(data)
@@ -148,14 +147,14 @@ pub trait SymmetricStateLike: Sync + Send {
         &mut self,
         _data: &[u8],
     ) -> Result<(Vec<u8>, SymmetricTag), CryptoErrno> {
-        return Err(CryptoErrno::InvalidOperation);
+        Err(CryptoErrno::InvalidOperation)
     }
 
     fn encrypt_detached(&mut self, data: &[u8]) -> Result<(Vec<u8>, SymmetricTag), CryptoErrno> {
         // if !(out.len() == data.len()) {
         //     return Err(CryptoErrno::InvalidLength);
         // }
-        if !(self.size_limit().is_none_or(|l| data.len() <= l)) {
+        if self.size_limit().is_some_and(|l| data.len() > l) {
             return Err(CryptoErrno::Overflow);
         }
 
@@ -163,11 +162,11 @@ pub trait SymmetricStateLike: Sync + Send {
     }
 
     fn decrypt_unchecked(&mut self, _data: &[u8], _raw_tag: &[u8]) -> Result<Vec<u8>, CryptoErrno> {
-        return Err(CryptoErrno::InvalidOperation);
+        Err(CryptoErrno::InvalidOperation)
     }
 
     fn decrypt(&mut self, data: &[u8], out_len: usize) -> Result<Vec<u8>, CryptoErrno> {
-        if !(self.size_limit().is_none_or(|l| data.len() <= l)) {
+        if self.size_limit().is_some_and(|l| data.len() > l) {
             return Err(CryptoErrno::Overflow);
         }
         if out_len > data.len() {
@@ -188,7 +187,7 @@ pub trait SymmetricStateLike: Sync + Send {
         _data: &[u8],
         _raw_tag: &[u8],
     ) -> Result<Vec<u8>, CryptoErrno> {
-        return Err(CryptoErrno::InvalidOperation);
+        Err(CryptoErrno::InvalidOperation)
     }
 
     fn decrypt_detached(&mut self, data: &[u8], raw_tag: &[u8]) -> Result<Vec<u8>, CryptoErrno> {
@@ -196,7 +195,7 @@ pub trait SymmetricStateLike: Sync + Send {
         //     return Err(CryptoErrno::InvalidLength);
         // }
 
-        if !(self.size_limit().is_none_or(|l| data.len() <= l)) {
+        if self.size_limit().is_some_and(|l| data.len() > l) {
             return Err(CryptoErrno::Overflow);
         }
         match self.decrypt_detached_unchecked(data, raw_tag) {
@@ -209,6 +208,6 @@ pub trait SymmetricStateLike: Sync + Send {
     }
 
     fn ratchet(&mut self) -> Result<(), CryptoErrno> {
-        return Err(CryptoErrno::InvalidOperation);
+        Err(CryptoErrno::InvalidOperation)
     }
 }

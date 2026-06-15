@@ -18,14 +18,14 @@ impl KeyPair {
     pub(crate) fn into_signature_keypair(self) -> Result<SignatureKeyPair, CryptoErrno> {
         match self {
             KeyPair::Signature(kp) => Ok(kp),
-            _ => return Err(CryptoErrno::InvalidHandle),
+            _ => Err(CryptoErrno::InvalidHandle),
         }
     }
 
     pub(crate) fn into_kx_keypair(self) -> Result<KxKeyPair, CryptoErrno> {
         match self {
             KeyPair::KeyExchange(kp) => Ok(kp),
-            _ => return Err(CryptoErrno::InvalidHandle),
+            _ => Err(CryptoErrno::InvalidHandle),
         }
     }
 
@@ -62,7 +62,7 @@ impl KeyPair {
                     options,
                 )?))
             }
-            _ => return Err(CryptoErrno::InvalidOperation),
+            _ => Err(CryptoErrno::InvalidOperation),
         }
     }
 
@@ -78,7 +78,7 @@ impl KeyPair {
                 encoded,
                 encoding,
             )?)),
-            _ => return Err(CryptoErrno::InvalidOperation),
+            _ => Err(CryptoErrno::InvalidOperation),
         }
     }
 
@@ -96,7 +96,7 @@ impl KeyPair {
             }
             _ => return Err(CryptoErrno::IncompatibleKeys),
         }
-        return Err(CryptoErrno::NotImplemented);
+        Err(CryptoErrno::NotImplemented)
     }
 
     pub fn public_key(&self) -> Result<PublicKey, CryptoErrno> {

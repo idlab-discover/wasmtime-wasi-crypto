@@ -103,7 +103,7 @@ impl SymmetricKeyBuilder for HmacSha2SymmetricKeyBuilder {
         match self.alg {
             SymmetricAlgorithm::HmacSha256 => Ok(32),
             SymmetricAlgorithm::HmacSha512 => Ok(64),
-            _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => Err(CryptoErrno::UnsupportedAlgorithm),
         }
     }
 }

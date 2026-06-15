@@ -17,14 +17,14 @@ impl SecretKey {
     pub(crate) fn into_signature_secret_key(self) -> Result<SignatureSecretKey, CryptoErrno> {
         match self {
             SecretKey::Signature(sk) => Ok(sk),
-            _ => return Err(CryptoErrno::InvalidHandle),
+            _ => Err(CryptoErrno::InvalidHandle),
         }
     }
 
     pub(crate) fn into_kx_secret_key(self) -> Result<KxSecretKey, CryptoErrno> {
         match self {
             SecretKey::KeyExchange(sk) => Ok(sk),
-            _ => return Err(CryptoErrno::InvalidHandle),
+            _ => Err(CryptoErrno::InvalidHandle),
         }
     }
 
@@ -43,7 +43,7 @@ impl SecretKey {
                 };
                 Ok(SecretKey::KeyExchange(builder.from_raw(encoded)?))
             }
-            _ => return Err(CryptoErrno::NotImplemented),
+            _ => Err(CryptoErrno::NotImplemented),
         }
     }
 

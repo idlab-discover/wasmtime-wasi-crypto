@@ -23,10 +23,10 @@ impl SignatureSecretKey {
     }
 
     pub(crate) fn export(&self, _encoding: SecretkeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
-        return Err(CryptoErrno::NotImplemented);
+        Err(CryptoErrno::NotImplemented)
     }
 
     pub(crate) fn publickey(&self) -> Result<SignaturePublicKey, CryptoErrno> {
-        return Err(CryptoErrno::NotImplemented);
+        Err(CryptoErrno::NotImplemented)
     }
 }

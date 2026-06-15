@@ -23,7 +23,7 @@ pub struct Kyber768PublicKey {
 
 impl Kyber768PublicKey {
     fn new(alg: KxAlgorithm, raw: &[u8]) -> Result<Self, CryptoErrno> {
-        if !(raw.len() == kyber768::public_key_bytes()) {
+        if raw.len() != kyber768::public_key_bytes()  {
             return Err(CryptoErrno::InvalidKey);
         };
         let mut raw_ = [0u8; kyber768::public_key_bytes()];
@@ -43,7 +43,7 @@ pub struct Kyber768SecretKey {
 
 impl Kyber768SecretKey {
     fn new(alg: KxAlgorithm, raw: Vec<u8>) -> Result<Self, CryptoErrno> {
-        if !(raw.len() == kyber768::secret_key_bytes()) {
+        if raw.len() != kyber768::secret_key_bytes()  {
             return Err(CryptoErrno::InvalidKey);
         };
         let mut raw_ = [0u8; kyber768::secret_key_bytes()];
@@ -98,7 +98,7 @@ pub struct Kyber768SecretKeyBuilder {
 
 impl KxSecretKeyBuilder for Kyber768SecretKeyBuilder {
     fn from_raw(&self, raw: &[u8]) -> Result<KxSecretKey, CryptoErrno> {
-        if !(raw.len() == kyber768::secret_key_bytes()) {
+        if raw.len() != kyber768::secret_key_bytes()  {
             return Err(CryptoErrno::InvalidKey);
         };
         let sk = Kyber768SecretKey::new(self.alg, raw.to_vec())?;
@@ -118,7 +118,7 @@ pub struct Kyber768PublicKeyBuilder {
 
 impl KxPublicKeyBuilder for Kyber768PublicKeyBuilder {
     fn from_raw(&self, raw: &[u8]) -> Result<KxPublicKey, CryptoErrno> {
-        if !(raw.len() == kyber768::public_key_bytes()) {
+        if raw.len() != kyber768::public_key_bytes()  {
             return Err(CryptoErrno::InvalidKey);
         };
         let pk = Kyber768PublicKey::new(self.alg, raw)?;
@@ -182,7 +182,7 @@ impl KxPublicKeyLike for Kyber768PublicKey {
 
 impl Kyber768SecretKey {
     fn kyber768_publickey(&self) -> Result<Kyber768PublicKey, CryptoErrno> {
-        return Err(CryptoErrno::UnsupportedFeature);
+        Err(CryptoErrno::UnsupportedFeature)
     }
 }
 
@@ -228,7 +228,7 @@ pub struct Kyber1024PublicKey {
 
 impl Kyber1024PublicKey {
     fn new(alg: KxAlgorithm, raw: &[u8]) -> Result<Self, CryptoErrno> {
-        if !(raw.len() == kyber1024::public_key_bytes()) {
+        if raw.len() != kyber1024::public_key_bytes()  {
             return Err(CryptoErrno::InvalidKey);
         };
         let mut raw_ = [0u8; kyber1024::public_key_bytes()];
@@ -248,7 +248,7 @@ pub struct Kyber1024SecretKey {
 
 impl Kyber1024SecretKey {
     fn new(alg: KxAlgorithm, raw: Vec<u8>) -> Result<Self, CryptoErrno> {
-        if !(raw.len() == kyber1024::secret_key_bytes()) {
+        if raw.len() != kyber1024::secret_key_bytes()  {
             return Err(CryptoErrno::InvalidKey);
         };
         let mut raw_ = [0u8; kyber1024::secret_key_bytes()];
@@ -303,7 +303,7 @@ pub struct Kyber1024SecretKeyBuilder {
 
 impl KxSecretKeyBuilder for Kyber1024SecretKeyBuilder {
     fn from_raw(&self, raw: &[u8]) -> Result<KxSecretKey, CryptoErrno> {
-        if !(raw.len() == kyber1024::secret_key_bytes()) {
+        if raw.len() != kyber1024::secret_key_bytes()  {
             return Err(CryptoErrno::InvalidKey);
         };
         let sk = Kyber1024SecretKey::new(self.alg, raw.to_vec())?;
@@ -323,7 +323,7 @@ pub struct Kyber1024PublicKeyBuilder {
 
 impl KxPublicKeyBuilder for Kyber1024PublicKeyBuilder {
     fn from_raw(&self, raw: &[u8]) -> Result<KxPublicKey, CryptoErrno> {
-        if !(raw.len() == kyber1024::public_key_bytes()) {
+        if raw.len() != kyber1024::public_key_bytes()  {
             return Err(CryptoErrno::InvalidKey);
         };
         let pk = Kyber1024PublicKey::new(self.alg, raw)?;
@@ -387,7 +387,7 @@ impl KxPublicKeyLike for Kyber1024PublicKey {
 
 impl Kyber1024SecretKey {
     fn kyber1024_publickey(&self) -> Result<Kyber1024PublicKey, CryptoErrno> {
-        return Err(CryptoErrno::UnsupportedFeature);
+        Err(CryptoErrno::UnsupportedFeature)
     }
 }
 

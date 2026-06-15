@@ -70,7 +70,7 @@ impl KxKeyPair {
     pub(crate) fn export(&self, encoding: KeypairEncoding) -> Result<Vec<u8>, CryptoErrno> {
         match encoding {
             KeypairEncoding::Raw => self.inner().as_raw(),
-            _ => return Err(CryptoErrno::UnsupportedEncoding),
+            _ => Err(CryptoErrno::UnsupportedEncoding),
         }
     }
 

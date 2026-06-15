@@ -7,7 +7,7 @@ use subtle::ConstantTimeEq;
 
 use crate::{
     bindings::wasi::crypto::{
-        wasi_ephemeral_crypto_common::{CryptoErrno, Publickey},
+        wasi_ephemeral_crypto_common::CryptoErrno,
         wasi_ephemeral_crypto_signatures::{SignatureKeypair, SignaturePublickey},
     },
     signatures::{

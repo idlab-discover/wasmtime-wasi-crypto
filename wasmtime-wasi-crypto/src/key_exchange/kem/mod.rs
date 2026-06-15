@@ -4,7 +4,6 @@ mod kyber;
 #[cfg(feature = "pqcrypto")]
 pub use kyber::*;
 
-use super::*;
 
 #[derive(Clone, Debug)]
 pub struct EncapsulatedSecret {

@@ -43,3 +43,10 @@ maintenance = { status = "experimental" }
 
 [lints.rust]
 unused_variables = "allow"
+dead_code = "allow"
+
+[lints.clippy]
+new_without_default = "allow"
+new_ret_no_self = "allow"
+unused_self = "allow"
+wrong_self_convention = "allow"

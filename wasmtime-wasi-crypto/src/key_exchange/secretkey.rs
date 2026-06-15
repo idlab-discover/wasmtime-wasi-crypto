@@ -45,7 +45,7 @@ impl KxSecretKey {
     pub(crate) fn export(&self, encoding: SecretkeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
         match encoding {
             SecretkeyEncoding::Raw => Ok(self.inner().as_raw()?.to_vec()),
-            _ => return Err(CryptoErrno::UnsupportedEncoding),
+            _ => Err(CryptoErrno::UnsupportedEncoding),
         }
     }
 
@@ -73,10 +73,10 @@ pub trait KxSecretKeyLike: Sync + Send {
     fn publickey(&self) -> Result<KxPublicKey, CryptoErrno>;
 
     fn dh(&self, _pk: &KxPublicKey) -> Result<Vec<u8>, CryptoErrno> {
-        return Err(CryptoErrno::InvalidOperation);
+        Err(CryptoErrno::InvalidOperation)
     }
 
     fn decapsulate(&self, _encapsulated_secret: &[u8]) -> Result<Vec<u8>, CryptoErrno> {
-        return Err(CryptoErrno::InvalidOperation);
+        Err(CryptoErrno::InvalidOperation)
     }
 }

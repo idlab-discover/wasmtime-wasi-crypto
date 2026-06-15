@@ -64,7 +64,7 @@ fn modulus_bits(alg: SignatureAlgorithm) -> Result<u32, CryptoErrno> {
 
 impl RsaSignatureKeyPair {
     fn from_pkcs8(alg: SignatureAlgorithm, der: &[u8]) -> Result<Self, CryptoErrno> {
-        if !(der.len() < 4096) {
+        if der.len() >= 4096  {
             return Err(CryptoErrno::InvalidKey);
         };
         let ctx: rsa::Rsa<pkey::Private> =
@@ -73,7 +73,7 @@ impl RsaSignatureKeyPair {
     }
 
     fn from_pem(alg: SignatureAlgorithm, pem: &[u8]) -> Result<Self, CryptoErrno> {
-        if !(pem.len() < 4096) {
+        if pem.len() >= 4096  {
             return Err(CryptoErrno::InvalidKey);
         };
         let ctx: rsa::Rsa<pkey::Private> =
@@ -82,7 +82,7 @@ impl RsaSignatureKeyPair {
     }
 
     fn from_local(alg: SignatureAlgorithm, local: &[u8]) -> Result<Self, CryptoErrno> {
-        if !(local.len() < 2048) {
+        if local.len() >= 2048  {
             return Err(CryptoErrno::InvalidKey);
         };
         let parts: RsaSignatureKeyPairParts =
@@ -175,7 +175,7 @@ impl RsaSignatureKeyPair {
             KeypairEncoding::Pkcs8 => self.to_pkcs8(),
             KeypairEncoding::Pem => self.to_pem(),
             KeypairEncoding::Local => self.to_local(),
-            _ => return Err(CryptoErrno::UnsupportedEncoding),
+            _ => Err(CryptoErrno::UnsupportedEncoding),
         }
     }
 
@@ -207,7 +207,7 @@ impl RsaSignature {
 
     pub fn from_raw(alg: SignatureAlgorithm, raw: &[u8]) -> Result<Self, CryptoErrno> {
         let expected_len = (modulus_bits(alg)? / 8) as usize;
-        if !(raw.len() == expected_len) {
+        if raw.len() != expected_len  {
             return Err(CryptoErrno::InvalidSignature);
         };
         Ok(Self::new(raw.to_vec()))
@@ -369,7 +369,7 @@ pub struct RsaSignaturePublicKey {
 
 impl RsaSignaturePublicKey {
     fn from_pkcs8(alg: SignatureAlgorithm, der: &[u8]) -> Result<Self, CryptoErrno> {
-        if !(der.len() < 4096) {
+        if der.len() >= 4096  {
             return Err(CryptoErrno::InvalidKey);
         };
         let ctx = rsa::Rsa::public_key_from_der(der).map_err(|_| CryptoErrno::InvalidKey)?;
@@ -377,7 +377,7 @@ impl RsaSignaturePublicKey {
     }
 
     fn from_pem(alg: SignatureAlgorithm, pem: &[u8]) -> Result<Self, CryptoErrno> {
-        if !(pem.len() < 4096) {
+        if pem.len() >= 4096  {
             return Err(CryptoErrno::InvalidKey);
         };
         let ctx = rsa::Rsa::public_key_from_pem(pem)
@@ -387,7 +387,7 @@ impl RsaSignaturePublicKey {
     }
 
     fn from_local(alg: SignatureAlgorithm, local: &[u8]) -> Result<Self, CryptoErrno> {
-        if !(local.len() < 1024) {
+        if local.len() >= 1024  {
             return Err(CryptoErrno::InvalidKey);
         };
         let parts: RsaSignaturePublicKeyParts =
@@ -452,7 +452,7 @@ impl RsaSignaturePublicKey {
             PublickeyEncoding::Pkcs8 => self.to_pkcs8(),
             PublickeyEncoding::Pem => self.to_pem(),
             PublickeyEncoding::Local => self.to_local(),
-            _ => return Err(CryptoErrno::UnsupportedEncoding),
+            _ => Err(CryptoErrno::UnsupportedEncoding),
         }
     }
 }

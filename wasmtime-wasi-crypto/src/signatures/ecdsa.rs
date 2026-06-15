@@ -16,21 +16,21 @@ use k256::ecdsa::{
 };
 use k256::elliptic_curve::sec1::ToEncodedPoint as _;
 use k256::pkcs8::{
-    DecodePrivateKey as _, DecodePublicKey as _, EncodePrivateKey as _, EncodePublicKey as _,
+    DecodePrivateKey as _, DecodePublicKey as _,
 };
 use p256::ecdsa::{
     self as ecdsa_p256, signature::DigestVerifier as _, signature::RandomizedDigestSigner as _,
 };
 use p256::elliptic_curve::sec1::ToEncodedPoint as _;
 use p256::pkcs8::{
-    DecodePrivateKey as _, DecodePublicKey as _, EncodePrivateKey as _, EncodePublicKey as _,
+    DecodePrivateKey as _, DecodePublicKey as _,
 };
 use p384::ecdsa::{
     self as ecdsa_p384, signature::DigestVerifier as _, signature::RandomizedDigestSigner as _,
 };
 use p384::elliptic_curve::sec1::ToEncodedPoint as _;
 use p384::pkcs8::{
-    DecodePrivateKey as _, DecodePublicKey as _, EncodePrivateKey as _, EncodePublicKey as _,
+    DecodePrivateKey as _, DecodePublicKey as _,
 };
 use std::any::Any;
 

@@ -109,7 +109,7 @@ impl SymmetricKeyBuilder for AesGcmSymmetricKeyBuilder {
         match self.alg {
             SymmetricAlgorithm::Aes128Gcm => Ok(16),
             SymmetricAlgorithm::Aes256Gcm => Ok(32),
-            _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => Err(CryptoErrno::UnsupportedAlgorithm),
         }
     }
 }
@@ -130,7 +130,7 @@ impl AesGcmSymmetricState {
         let options = options.as_ref().ok_or(CryptoErrno::NonceRequired)?;
         let inner = options.inner.lock().unwrap();
         let nonce_vec = inner.nonce.as_ref().ok_or(CryptoErrno::NonceRequired)?;
-        if !(nonce_vec.len() == NONCE_LEN) {
+        if nonce_vec.len() != NONCE_LEN  {
             return Err(CryptoErrno::InvalidNonce);
         };
         let mut nonce = [0u8; NONCE_LEN];
