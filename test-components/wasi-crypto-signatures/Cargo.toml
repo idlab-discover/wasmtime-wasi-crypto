@@ -4,5 +4,8 @@ version.workspace = true
 edition.workspace = true
 publish = false
 
+[lib]
+doctest = false
+
 [dependencies]
 wit-bindgen.workspace = true
