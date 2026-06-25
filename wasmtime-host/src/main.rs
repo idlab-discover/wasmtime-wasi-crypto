@@ -1,7 +1,6 @@
 mod host;
 mod runner;
 use clap::{Parser, Subcommand};
-use std::error::Error;
 
 #[derive(Parser)]
 #[command(about = "wasmtime host with wasi-crypto support")]
@@ -34,7 +33,7 @@ enum Commands {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let cli = Cli::parse();

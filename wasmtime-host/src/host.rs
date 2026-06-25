@@ -1,5 +1,6 @@
-use std::{error::Error, path::Path};
-use wasmtime::{Engine, Store, component::Component, component::Linker, error::Context};
+use std::path::Path;
+use wasmtime::error::Context;
+use wasmtime::{Engine, Store, component::Component, component::Linker};
 use wasmtime_wasi::p2::bindings::Command;
 use wasmtime_wasi::{ResourceTable, WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
 use wasmtime_wasi_crypto::crypto::{WasiCryptoCtx, WasiCryptoView};
@@ -31,7 +32,7 @@ impl WasiCryptoView for HostState {
     }
 }
 
-pub fn make_linker(engine: &Engine) -> Result<Linker<HostState>, Box<dyn Error>> {
+pub fn make_linker(engine: &Engine) -> anyhow::Result<Linker<HostState>> {
     let mut linker: Linker<HostState> = Linker::new(engine);
     // https://docs.wasmtime.dev/api/wasmtime_wasi/p2/bindings/index.html
     wasmtime_wasi::p2::add_to_linker_async(&mut linker)?;
@@ -59,7 +60,7 @@ pub fn make_store(engine: &Engine, wasi_args: &[&str]) -> Store<HostState> {
 }
 
 /// Run a wasm component at `path`, forwarding `wasi_args` as WASI argv.
-pub async fn run_component(path: &Path, wasi_args: &[&str]) -> Result<(), Box<dyn Error>> {
+pub async fn run_component(path: &Path, wasi_args: &[&str]) -> anyhow::Result<()> {
     let engine = Engine::default();
     let linker = make_linker(&engine)?;
     let mut store = make_store(&engine, wasi_args);
@@ -68,12 +69,12 @@ pub async fn run_component(path: &Path, wasi_args: &[&str]) -> Result<(), Box<dy
         Component::from_file(&engine, path).context("Failed to load WebAssembly component")?;
 
     let command = Command::instantiate_async(&mut store, &component, &linker).await?;
-    command
-        .wasi_cli_run()
-        .call_run(&mut store)
-        .await
-        .map_err(|_| "WASI command failed")?
-        .map_err(|_| "WASI command failed")?;
-
-    Ok(())
+    let result = command.wasi_cli_run().call_run(&mut store).await;
+    match result {
+        Err(trap) => Err(trap
+            .context("HOST TRAP (instance aborted, not a guest error)")
+            .into()),
+        Ok(Err(e)) => Err(anyhow::anyhow!("GUEST RETURNED ERROR: {:?}", e)),
+        Ok(Ok(())) => Ok(()),
+    }
 }

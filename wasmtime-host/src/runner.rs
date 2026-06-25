@@ -1,5 +1,5 @@
 use clap::Parser;
-use std::{error::Error, path::Path};
+use std::path::Path;
 use wasmtime::{Engine, component::Component, error::Context};
 use wasmtime_wasi::p2::bindings::Command;
 
@@ -18,7 +18,7 @@ pub async fn list_tests(
     engine: &Engine,
     linker: &wasmtime::component::Linker<HostState>,
     component: &Component,
-) -> Result<Vec<String>, Box<dyn Error>> {
+) -> anyhow::Result<Vec<String>> {
     let stdout = MemoryOutputPipe::new(usize::MAX);
 
     let wasi_ctx = WasiCtxBuilder::new()
@@ -51,7 +51,7 @@ pub async fn list_tests(
 }
 
 /// Run all discovered tests using the libtest-mimic harness wrapper
-pub async fn run_each(component: &Path, test_args: Vec<String>) -> Result<(), Box<dyn Error>> {
+pub async fn run_each(component: &Path, test_args: Vec<String>) -> anyhow::Result<()> {
     let engine = Engine::default();
     let linker = crate::host::make_linker(&engine)?;
     let component_obj =
