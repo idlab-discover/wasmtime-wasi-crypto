@@ -12,7 +12,9 @@ pub use self::key::SymmetricKey;
 pub use self::state::SymmetricState;
 pub use self::tag::SymmetricTag;
 use crate::{
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno, options::OptionsLike,
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
+    error::{CryptoError, CryptoResult},
+    options::OptionsLike,
 };
 use std::{
     any::Any,
@@ -57,60 +59,63 @@ impl OptionsLike for SymmetricOptions {
         &mut self,
         name: &str,
         guest_buffer: &'static mut [u8],
-    ) -> Result<(), CryptoErrno> {
+    ) -> CryptoResult<()> {
         let mut inner = self.inner.lock().unwrap();
         let option = match name.to_lowercase().as_str() {
             "buffer" => &mut inner.guest_buffer,
-            _ => return Err(CryptoErrno::UnsupportedOption),
+            _ => return Err(CryptoErrno::UnsupportedOption.into()),
         };
         *option = Some(guest_buffer);
         Ok(())
     }
 
-    fn set(&mut self, name: &str, value: &[u8]) -> Result<(), CryptoErrno> {
+    fn set(&mut self, name: &str, value: &[u8]) -> CryptoResult<()> {
         let mut inner = self.inner.lock().unwrap();
         let option = match name.to_lowercase().as_str() {
             "context" => &mut inner.context,
             "salt" => &mut inner.salt,
             "nonce" => &mut inner.nonce,
-            _ => return Err(CryptoErrno::UnsupportedOption),
+            _ => return Err(CryptoErrno::UnsupportedOption.into()),
         };
         *option = Some(value.to_vec());
         Ok(())
     }
 
-    fn get(&self, name: &str) -> Result<Vec<u8>, CryptoErrno> {
+    fn get(&self, name: &str) -> CryptoResult<Vec<u8>> {
         let inner = self.inner.lock().unwrap();
         let value = match name.to_lowercase().as_str() {
             "context" => &inner.context,
             "salt" => &inner.salt,
             "nonce" => &inner.nonce,
-            _ => return Err(CryptoErrno::UnsupportedOption),
+            _ => return Err(CryptoErrno::UnsupportedOption.into()),
         };
-        value.as_ref().cloned().ok_or(CryptoErrno::OptionNotSet)
+        value
+            .as_ref()
+            .cloned()
+            .ok_or(CryptoErrno::OptionNotSet.into())
     }
 
-    fn set_u64(&mut self, name: &str, value: u64) -> Result<(), CryptoErrno> {
+    fn set_u64(&mut self, name: &str, value: u64) -> CryptoResult<()> {
         let mut inner = self.inner.lock().unwrap();
         let option = match name.to_lowercase().as_str() {
             "memory_limit" => &mut inner.memory_limit,
             "ops_limit" => &mut inner.ops_limit,
             "parallelism" => &mut inner.parallelism,
-            _ => return Err(CryptoErrno::UnsupportedOption),
+            _ => return Err(CryptoErrno::UnsupportedOption.into()),
         };
         *option = Some(value);
         Ok(())
     }
 
-    fn get_u64(&self, name: &str) -> Result<u64, CryptoErrno> {
+    fn get_u64(&self, name: &str) -> CryptoResult<u64> {
         let inner = self.inner.lock().unwrap();
         let value = match name.to_lowercase().as_str() {
             "memory_limit" => &inner.memory_limit,
             "ops_limit" => &inner.ops_limit,
             "parallelism" => &inner.parallelism,
-            _ => return Err(CryptoErrno::UnsupportedOption),
+            _ => return Err(CryptoErrno::UnsupportedOption.into()),
         };
-        value.ok_or(CryptoErrno::OptionNotSet)
+        value.ok_or(CryptoErrno::OptionNotSet.into())
     }
 }
 
@@ -136,9 +141,9 @@ pub enum SymmetricAlgorithm {
 }
 
 impl TryFrom<&str> for SymmetricAlgorithm {
-    type Error = CryptoErrno;
+    type Error = CryptoError;
 
-    fn try_from(alg_str: &str) -> Result<Self, CryptoErrno> {
+    fn try_from(alg_str: &str) -> CryptoResult<Self> {
         match alg_str.to_uppercase().as_str() {
             "HKDF-EXTRACT/SHA-256" => Ok(SymmetricAlgorithm::HkdfSha256Extract),
             "HKDF-EXTRACT/SHA-512" => Ok(SymmetricAlgorithm::HkdfSha512Extract),
@@ -156,7 +161,7 @@ impl TryFrom<&str> for SymmetricAlgorithm {
             "XCHACHA20-POLY1305" => Ok(SymmetricAlgorithm::XChaCha20Poly1305),
             "XOODYAK-128" => Ok(SymmetricAlgorithm::Xoodyak128),
             "XOODYAK-160" => Ok(SymmetricAlgorithm::Xoodyak160),
-            _ => Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => Err(CryptoErrno::UnsupportedAlgorithm.into()),
         }
     }
 }

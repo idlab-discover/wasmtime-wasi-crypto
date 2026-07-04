@@ -1,5 +1,6 @@
 use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::{CryptoErrno, SecretkeyEncoding},
+    error::CryptoResult,
     signatures::{
         SignatureAlgorithm, ecdsa::EcdsaSignatureSecretKey, eddsa::EddsaSignatureSecretKey,
         publickey::SignaturePublicKey, rsa::RsaSignatureSecretKey,
@@ -22,11 +23,11 @@ impl SignatureSecretKey {
         }
     }
 
-    pub(crate) fn export(&self, _encoding: SecretkeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
-        Err(CryptoErrno::NotImplemented)
+    pub(crate) fn export(&self, _encoding: SecretkeyEncoding) -> CryptoResult<Vec<u8>> {
+        Err(CryptoErrno::NotImplemented.into())
     }
 
-    pub(crate) fn publickey(&self) -> Result<SignaturePublicKey, CryptoErrno> {
-        Err(CryptoErrno::NotImplemented)
+    pub(crate) fn publickey(&self) -> CryptoResult<SignaturePublicKey> {
+        Err(CryptoErrno::NotImplemented.into())
     }
 }

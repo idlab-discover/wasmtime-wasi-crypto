@@ -5,6 +5,7 @@ use crate::{
     bindings::wasi::crypto::{
         wasi_ephemeral_crypto_common::CryptoErrno, wasi_ephemeral_crypto_symmetric::SymmetricKey,
     },
+    error::CryptoResult,
     options::OptionsLike,
     rand::SecureRandom,
     symmetric::{
@@ -42,7 +43,7 @@ impl SymmetricKeyLike for HkdfSymmetricKey {
         self
     }
 
-    fn as_raw(&self) -> Result<&[u8], CryptoErrno> {
+    fn as_raw(&self) -> CryptoResult<&[u8]> {
         Ok(&self.raw)
     }
 }
@@ -66,7 +67,7 @@ impl PartialEq for HkdfSymmetricKey {
 }
 
 impl HkdfSymmetricKey {
-    pub fn new(alg: SymmetricAlgorithm, raw: &[u8]) -> Result<Self, CryptoErrno> {
+    pub fn new(alg: SymmetricAlgorithm, raw: &[u8]) -> CryptoResult<Self> {
         Ok(HkdfSymmetricKey {
             alg,
             raw: raw.to_vec(),
@@ -85,23 +86,23 @@ impl HkdfSymmetricKeyBuilder {
 }
 
 impl SymmetricKeyBuilder for HkdfSymmetricKeyBuilder {
-    fn generate(&self, _options: Option<SymmetricOptions>) -> Result<SymmetricKey, CryptoErrno> {
+    fn generate(&self, _options: Option<SymmetricOptions>) -> CryptoResult<SymmetricKey> {
         let mut rng = SecureRandom::new();
         let mut raw = vec![0u8; self.key_len()?];
         rng.fill(&mut raw)?;
         self.import(&raw)
     }
 
-    fn import(&self, raw: &[u8]) -> Result<SymmetricKey, CryptoErrno> {
+    fn import(&self, raw: &[u8]) -> CryptoResult<SymmetricKey> {
         let key = HkdfSymmetricKey::new(self.alg, raw)?;
         Ok(SymmetricKey::new(Box::new(key)))
     }
 
-    fn key_len(&self) -> Result<usize, CryptoErrno> {
+    fn key_len(&self) -> CryptoResult<usize> {
         match self.alg {
             SymmetricAlgorithm::HkdfSha256Expand | SymmetricAlgorithm::HkdfSha256Extract => Ok(32),
             SymmetricAlgorithm::HkdfSha512Expand | SymmetricAlgorithm::HkdfSha512Extract => Ok(64),
-            _ => Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => Err(CryptoErrno::UnsupportedAlgorithm.into()),
         }
     }
 }
@@ -112,7 +113,7 @@ impl HkdfSymmetricState {
         key: Option<SymmetricKey>,
         options: Option<SymmetricOptions>,
         size_limit: Option<usize>,
-    ) -> Result<Self, CryptoErrno> {
+    ) -> CryptoResult<Self> {
         let key = key.ok_or(CryptoErrno::KeyRequired)?;
         let key = key.inner();
         let key = key
@@ -135,14 +136,14 @@ impl SymmetricStateLike for HkdfSymmetricState {
         self.alg
     }
 
-    fn options_get(&self, name: &str) -> Result<Vec<u8>, CryptoErrno> {
+    fn options_get(&self, name: &str) -> CryptoResult<Vec<u8>> {
         self.options
             .as_ref()
             .ok_or(CryptoErrno::OptionNotSet)?
             .get(name)
     }
 
-    fn options_get_u64(&self, name: &str) -> Result<u64, CryptoErrno> {
+    fn options_get_u64(&self, name: &str) -> CryptoResult<u64> {
         self.options
             .as_ref()
             .ok_or(CryptoErrno::OptionNotSet)?
@@ -153,12 +154,12 @@ impl SymmetricStateLike for HkdfSymmetricState {
         self.size_limit
     }
 
-    fn absorb_unchecked(&mut self, data: &[u8]) -> Result<(), CryptoErrno> {
+    fn absorb_unchecked(&mut self, data: &[u8]) -> CryptoResult<()> {
         self.data.extend_from_slice(data);
         Ok(())
     }
 
-    fn squeeze_key(&mut self, alg_str: &str) -> Result<SymmetricKey, CryptoErrno> {
+    fn squeeze_key(&mut self, alg_str: &str) -> CryptoResult<SymmetricKey> {
         let raw_prk = match self.alg {
             SymmetricAlgorithm::HkdfSha256Extract => {
                 Hkdf::<Sha256>::extract(Some(&self.data), &self.key)
@@ -170,17 +171,17 @@ impl SymmetricStateLike for HkdfSymmetricState {
                     .0
                     .to_vec()
             }
-            _ => return Err(CryptoErrno::InvalidOperation),
+            _ => return Err(CryptoErrno::InvalidOperation.into()),
         };
         let builder = SymmetricKey::builder(alg_str)?;
         builder.import(&raw_prk)
     }
 
-    fn squeeze_unchecked(&mut self) -> Result<Vec<u8>, CryptoErrno> {
+    fn squeeze_unchecked(&mut self) -> CryptoResult<Vec<u8>> {
         let out_len = match self.alg {
             SymmetricAlgorithm::HkdfSha256Expand => 32,
             SymmetricAlgorithm::HkdfSha512Expand => 64,
-            _ => return Err(CryptoErrno::InvalidOperation),
+            _ => return Err(CryptoErrno::InvalidOperation.into()),
         };
         let mut out = vec![0u8; out_len];
         match self.alg {
@@ -190,7 +191,7 @@ impl SymmetricStateLike for HkdfSymmetricState {
             SymmetricAlgorithm::HkdfSha512Expand => Hkdf::<Sha512>::from_prk(&self.key)
                 .map_err(|_| CryptoErrno::InvalidKey)?
                 .expand(&self.data, &mut out),
-            _ => return Err(CryptoErrno::InvalidOperation),
+            _ => return Err(CryptoErrno::InvalidOperation.into()),
         }
         .map_err(|_| CryptoErrno::Overflow)?;
         Ok(out)

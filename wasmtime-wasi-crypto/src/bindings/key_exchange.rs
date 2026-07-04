@@ -1,8 +1,9 @@
 use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_kx::Host;
 
 use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
-    ArrayOutput, CryptoErrno, Publickey, Secretkey,
+    ArrayOutput, Publickey, Secretkey,
 };
+use crate::error::CryptoResult;
 
 impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     #[doc = "/ Perform a simple Diffie-Hellman key exchange."]
@@ -15,11 +16,11 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         pk: wasmtime::component::Resource<Publickey>,
         sk: wasmtime::component::Resource<Secretkey>,
-    ) -> Result<wasmtime::component::Resource<ArrayOutput>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<ArrayOutput>> {
         let pk = self.table.get(&pk)?.clone().into_kx_public_key()?;
         let sk = self.table.get(&sk)?.clone().into_kx_secret_key()?;
         let shared_secret = sk.dh(&pk)?;
-        ArrayOutput::register(self.table, shared_secret)
+        Ok(ArrayOutput::register(self.table, shared_secret)?)
     }
 
     #[doc = "/ Create a shared secret and encrypt it for the given public key."]
@@ -31,13 +32,10 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn kx_encapsulate(
         &mut self,
         pk: wasmtime::component::Resource<Publickey>,
-    ) -> Result<
-        (
-            wasmtime::component::Resource<ArrayOutput>,
-            wasmtime::component::Resource<ArrayOutput>,
-        ),
-        CryptoErrno,
-    > {
+    ) -> CryptoResult<(
+        wasmtime::component::Resource<ArrayOutput>,
+        wasmtime::component::Resource<ArrayOutput>,
+    )> {
         let pk = self.table.get(&pk)?.clone().into_kx_public_key()?;
         let encapsulated_secret = pk.encapsulate()?;
         let secret_handle = ArrayOutput::register(self.table, encapsulated_secret.secret)?;
@@ -53,9 +51,9 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         sk: wasmtime::component::Resource<Secretkey>,
         encapsulated_secret: wasmtime::component::__internal::Vec<u8>,
-    ) -> Result<wasmtime::component::Resource<ArrayOutput>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<ArrayOutput>> {
         let sk = self.table.get(&sk)?.clone().into_kx_secret_key()?;
         let shared_secret = sk.decapsulate(&encapsulated_secret)?;
-        ArrayOutput::register(self.table, shared_secret)
+        Ok(ArrayOutput::register(self.table, shared_secret)?)
     }
 }

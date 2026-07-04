@@ -7,6 +7,7 @@ pub mod secretkey;
 pub mod signature;
 
 use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno;
+use crate::error::{CryptoError, CryptoResult};
 use crate::options::OptionsLike;
 pub use crate::signatures::signature::Signature;
 use std::any::Any;
@@ -63,9 +64,9 @@ impl SignatureAlgorithm {
 }
 
 impl TryFrom<&str> for SignatureAlgorithm {
-    type Error = CryptoErrno;
+    type Error = CryptoError;
 
-    fn try_from(alg_str: &str) -> Result<Self, CryptoErrno> {
+    fn try_from(alg_str: &str) -> CryptoResult<Self> {
         match alg_str.to_uppercase().as_str() {
             "ECDSA_P256_SHA256" => Ok(SignatureAlgorithm::ECDSA_P256_SHA256),
             "ECDSA_K256_SHA256" => Ok(SignatureAlgorithm::ECDSA_K256_SHA256),
@@ -87,7 +88,7 @@ impl TryFrom<&str> for SignatureAlgorithm {
             "RSA_PSS_3072_SHA512" => Ok(SignatureAlgorithm::RSA_PSS_3072_SHA512),
             "RSA_PSS_4096_SHA512" => Ok(SignatureAlgorithm::RSA_PSS_4096_SHA512),
 
-            _ => Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => Err(CryptoErrno::UnsupportedAlgorithm.into()),
         }
     }
 }
@@ -100,11 +101,11 @@ impl OptionsLike for SignatureOptions {
         self
     }
 
-    fn set(&mut self, _name: &str, _value: &[u8]) -> Result<(), CryptoErrno> {
-        Err(CryptoErrno::UnsupportedOption)
+    fn set(&mut self, _name: &str, _value: &[u8]) -> CryptoResult<()> {
+        Err(CryptoErrno::UnsupportedOption.into())
     }
 
-    fn set_u64(&mut self, _name: &str, _value: u64) -> Result<(), CryptoErrno> {
-        Err(CryptoErrno::UnsupportedOption)
+    fn set_u64(&mut self, _name: &str, _value: u64) -> CryptoResult<()> {
+        Err(CryptoErrno::UnsupportedOption.into())
     }
 }

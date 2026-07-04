@@ -2,6 +2,7 @@ use ed25519_compact::x25519;
 
 use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
+    error::CryptoResult,
     key_exchange::{
         KxAlgorithm, KxOptions,
         keypair::{KxKeyPair, KxKeyPairBuilder, KxKeyPairLike},
@@ -22,7 +23,7 @@ pub struct X25519PublicKey {
 }
 
 impl X25519PublicKey {
-    fn new(alg: KxAlgorithm, raw: &[u8]) -> Result<Self, CryptoErrno> {
+    fn new(alg: KxAlgorithm, raw: &[u8]) -> CryptoResult<Self> {
         let group_element =
             x25519::PublicKey::from_slice(raw).map_err(|_| CryptoErrno::InvalidKey)?;
         Ok(X25519PublicKey { alg, group_element })
@@ -37,7 +38,7 @@ pub struct X25519SecretKey {
 }
 
 impl X25519SecretKey {
-    fn new(alg: KxAlgorithm, raw: Vec<u8>) -> Result<Self, CryptoErrno> {
+    fn new(alg: KxAlgorithm, raw: Vec<u8>) -> CryptoResult<Self> {
         let scalar = x25519::SecretKey::from_slice(&raw).map_err(|_| CryptoErrno::InvalidKey)?;
         let sk = X25519SecretKey { alg, raw, scalar };
         Ok(sk)
@@ -62,7 +63,7 @@ impl X25519KeyPairBuilder {
 }
 
 impl KxKeyPairBuilder for X25519KeyPairBuilder {
-    fn generate(&self, _options: Option<KxOptions>) -> Result<KxKeyPair, CryptoErrno> {
+    fn generate(&self, _options: Option<KxOptions>) -> CryptoResult<KxKeyPair> {
         let mut rng = SecureRandom::new();
         let mut sk_raw = vec![0u8; SK_LEN];
         rng.fill(&mut sk_raw)?;
@@ -82,9 +83,9 @@ pub struct X25519SecretKeyBuilder {
 }
 
 impl KxSecretKeyBuilder for X25519SecretKeyBuilder {
-    fn from_raw(&self, raw: &[u8]) -> Result<KxSecretKey, CryptoErrno> {
+    fn from_raw(&self, raw: &[u8]) -> CryptoResult<KxSecretKey> {
         if raw.len() != SK_LEN {
-            return Err(CryptoErrno::InvalidKey);
+            return Err(CryptoErrno::InvalidKey.into());
         };
         let sk = X25519SecretKey::new(self.alg, raw.to_vec())?;
         Ok(KxSecretKey::new(Box::new(sk)))
@@ -102,9 +103,9 @@ pub struct X25519PublicKeyBuilder {
 }
 
 impl KxPublicKeyBuilder for X25519PublicKeyBuilder {
-    fn from_raw(&self, raw: &[u8]) -> Result<KxPublicKey, CryptoErrno> {
+    fn from_raw(&self, raw: &[u8]) -> CryptoResult<KxPublicKey> {
         if raw.len() != PK_LEN {
-            return Err(CryptoErrno::InvalidKey);
+            return Err(CryptoErrno::InvalidKey.into());
         };
         let pk = X25519PublicKey::new(self.alg, raw)?;
         Ok(KxPublicKey::new(Box::new(pk)))
@@ -126,11 +127,11 @@ impl KxKeyPairLike for X25519KeyPair {
         self
     }
 
-    fn publickey(&self) -> Result<KxPublicKey, CryptoErrno> {
+    fn publickey(&self) -> CryptoResult<KxPublicKey> {
         Ok(KxPublicKey::new(Box::new(self.pk.clone())))
     }
 
-    fn secretkey(&self) -> Result<KxSecretKey, CryptoErrno> {
+    fn secretkey(&self) -> CryptoResult<KxSecretKey> {
         Ok(KxSecretKey::new(Box::new(self.sk.clone())))
     }
 }
@@ -144,15 +145,15 @@ impl KxPublicKeyLike for X25519PublicKey {
         self.alg
     }
 
-    fn len(&self) -> Result<usize, CryptoErrno> {
+    fn len(&self) -> CryptoResult<usize> {
         Ok(PK_LEN)
     }
 
-    fn as_raw(&self) -> Result<&[u8], CryptoErrno> {
+    fn as_raw(&self) -> CryptoResult<&[u8]> {
         Ok(&*self.group_element)
     }
 
-    fn verify(&self) -> Result<(), CryptoErrno> {
+    fn verify(&self) -> CryptoResult<()> {
         self.group_element
             .clear_cofactor()
             .map_err(|_| CryptoErrno::InvalidKey)?;
@@ -161,7 +162,7 @@ impl KxPublicKeyLike for X25519PublicKey {
 }
 
 impl X25519SecretKey {
-    fn x25519_publickey(&self) -> Result<X25519PublicKey, CryptoErrno> {
+    fn x25519_publickey(&self) -> CryptoResult<X25519PublicKey> {
         let group_element = self
             .scalar
             .recover_public_key()
@@ -183,19 +184,19 @@ impl KxSecretKeyLike for X25519SecretKey {
         self.alg
     }
 
-    fn len(&self) -> Result<usize, CryptoErrno> {
+    fn len(&self) -> CryptoResult<usize> {
         Ok(SK_LEN)
     }
 
-    fn as_raw(&self) -> Result<&[u8], CryptoErrno> {
+    fn as_raw(&self) -> CryptoResult<&[u8]> {
         Ok(&self.raw)
     }
 
-    fn publickey(&self) -> Result<KxPublicKey, CryptoErrno> {
+    fn publickey(&self) -> CryptoResult<KxPublicKey> {
         Ok(KxPublicKey::new(Box::new(self.x25519_publickey()?)))
     }
 
-    fn dh(&self, pk: &KxPublicKey) -> Result<Vec<u8>, CryptoErrno> {
+    fn dh(&self, pk: &KxPublicKey) -> CryptoResult<Vec<u8>> {
         let pk = pk.inner();
         let pk = pk
             .as_any()

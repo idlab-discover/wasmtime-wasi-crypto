@@ -8,6 +8,7 @@ use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
         CryptoErrno, KeypairEncoding, PublickeyEncoding, Signature,
     },
+    error::CryptoResult,
     signatures::{
         SignatureAlgorithm, SignatureAlgorithmFamily, SignatureOptions,
         signature::{SignatureLike, SignatureStateLike, SignatureVerificationStateLike},
@@ -44,7 +45,7 @@ pub struct RsaSignatureKeyPair {
     ctx: rsa::Rsa<pkey::Private>,
 }
 
-fn modulus_bits(alg: SignatureAlgorithm) -> Result<u32, CryptoErrno> {
+fn modulus_bits(alg: SignatureAlgorithm) -> CryptoResult<u32> {
     let modulus_bits = match alg {
         SignatureAlgorithm::RSA_PKCS1_2048_SHA256
         | SignatureAlgorithm::RSA_PKCS1_2048_SHA384
@@ -57,39 +58,39 @@ fn modulus_bits(alg: SignatureAlgorithm) -> Result<u32, CryptoErrno> {
         | SignatureAlgorithm::RSA_PSS_3072_SHA384
         | SignatureAlgorithm::RSA_PSS_3072_SHA512 => 3072,
         SignatureAlgorithm::RSA_PKCS1_4096_SHA512 | SignatureAlgorithm::RSA_PSS_4096_SHA512 => 4096,
-        _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+        _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
     };
     Ok(modulus_bits)
 }
 
 impl RsaSignatureKeyPair {
-    fn from_pkcs8(alg: SignatureAlgorithm, der: &[u8]) -> Result<Self, CryptoErrno> {
-        if der.len() >= 4096  {
-            return Err(CryptoErrno::InvalidKey);
+    fn from_pkcs8(alg: SignatureAlgorithm, der: &[u8]) -> CryptoResult<Self> {
+        if der.len() >= 4096 {
+            return Err(CryptoErrno::InvalidKey.into());
         };
         let ctx: rsa::Rsa<pkey::Private> =
             rsa::Rsa::private_key_from_der(der).map_err(|_| CryptoErrno::InvalidKey)?;
         Ok(RsaSignatureKeyPair { alg, ctx })
     }
 
-    fn from_pem(alg: SignatureAlgorithm, pem: &[u8]) -> Result<Self, CryptoErrno> {
-        if pem.len() >= 4096  {
-            return Err(CryptoErrno::InvalidKey);
+    fn from_pem(alg: SignatureAlgorithm, pem: &[u8]) -> CryptoResult<Self> {
+        if pem.len() >= 4096 {
+            return Err(CryptoErrno::InvalidKey.into());
         };
         let ctx: rsa::Rsa<pkey::Private> =
             rsa::Rsa::private_key_from_pem(pem).map_err(|_| CryptoErrno::InvalidKey)?;
         Ok(RsaSignatureKeyPair { alg, ctx })
     }
 
-    fn from_local(alg: SignatureAlgorithm, local: &[u8]) -> Result<Self, CryptoErrno> {
-        if local.len() >= 2048  {
-            return Err(CryptoErrno::InvalidKey);
+    fn from_local(alg: SignatureAlgorithm, local: &[u8]) -> CryptoResult<Self> {
+        if local.len() >= 2048 {
+            return Err(CryptoErrno::InvalidKey.into());
         };
         let parts: RsaSignatureKeyPairParts =
             rkyv::from_bytes::<RsaSignatureKeyPairParts, rancor::Error>(local)
                 .map_err(|_| CryptoErrno::InvalidKey)?;
         if !(parts.version == RAW_ENCODING_VERSION && parts.alg_id == RAW_ENCODING_ALG_ID) {
-            return Err(CryptoErrno::InvalidKey);
+            return Err(CryptoErrno::InvalidKey.into());
         };
         let n = bn::BigNum::from_slice(&parts.n).map_err(|_| CryptoErrno::InvalidKey)?;
         let e = bn::BigNum::from_slice(&parts.e).map_err(|_| CryptoErrno::InvalidKey)?;
@@ -105,19 +106,19 @@ impl RsaSignatureKeyPair {
         Ok(RsaSignatureKeyPair { alg, ctx })
     }
 
-    fn to_pkcs8(&self) -> Result<Vec<u8>, CryptoErrno> {
+    fn to_pkcs8(&self) -> CryptoResult<Vec<u8>> {
         self.ctx
             .private_key_to_der()
-            .map_err(|_| CryptoErrno::InternalError)
+            .map_err(|_| CryptoErrno::InternalError.into())
     }
 
-    fn to_pem(&self) -> Result<Vec<u8>, CryptoErrno> {
+    fn to_pem(&self) -> CryptoResult<Vec<u8>> {
         self.ctx
             .private_key_to_pem()
-            .map_err(|_| CryptoErrno::InternalError)
+            .map_err(|_| CryptoErrno::InternalError.into())
     }
 
-    fn to_local(&self) -> Result<Vec<u8>, CryptoErrno> {
+    fn to_local(&self) -> CryptoResult<Vec<u8>> {
         let parts = RsaSignatureKeyPairParts {
             version: RAW_ENCODING_VERSION,
             alg_id: RAW_ENCODING_ALG_ID,
@@ -139,7 +140,7 @@ impl RsaSignatureKeyPair {
     pub fn generate(
         alg: SignatureAlgorithm,
         _options: Option<SignatureOptions>,
-    ) -> Result<Self, CryptoErrno> {
+    ) -> CryptoResult<Self> {
         let modulus_bits = modulus_bits(alg)?;
         let ctx: rsa::Rsa<pkey::Private> =
             rsa::Rsa::generate(modulus_bits).map_err(|_| CryptoErrno::UnsupportedAlgorithm)?;
@@ -150,36 +151,36 @@ impl RsaSignatureKeyPair {
         alg: SignatureAlgorithm,
         encoded: &[u8],
         encoding: KeypairEncoding,
-    ) -> Result<Self, CryptoErrno> {
+    ) -> CryptoResult<Self> {
         match alg.family() {
             SignatureAlgorithmFamily::RSA => {}
-            _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
         };
         let kp = match encoding {
             KeypairEncoding::Pkcs8 => Self::from_pkcs8(alg, encoded)?,
             KeypairEncoding::Pem => Self::from_pem(alg, encoded)?,
             KeypairEncoding::Local => Self::from_local(alg, encoded)?,
-            _ => return Err(CryptoErrno::UnsupportedEncoding),
+            _ => return Err(CryptoErrno::UnsupportedEncoding.into()),
         };
         let modulus_size = kp.ctx.size();
         let min_modulus_bits = modulus_bits(alg)?;
         if !((min_modulus_bits / 8..=MAX_MODULUS_SIZE / 8).contains(&modulus_size)) {
-            return Err(CryptoErrno::InvalidKey);
+            return Err(CryptoErrno::InvalidKey.into());
         }
         kp.ctx.check_key().map_err(|_| CryptoErrno::InvalidKey)?;
         Ok(kp)
     }
 
-    pub fn export(&self, encoding: KeypairEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub fn export(&self, encoding: KeypairEncoding) -> CryptoResult<Vec<u8>> {
         match encoding {
             KeypairEncoding::Pkcs8 => self.to_pkcs8(),
             KeypairEncoding::Pem => self.to_pem(),
             KeypairEncoding::Local => self.to_local(),
-            _ => Err(CryptoErrno::UnsupportedEncoding),
+            _ => Err(CryptoErrno::UnsupportedEncoding.into()),
         }
     }
 
-    pub fn public_key(&self) -> Result<RsaSignaturePublicKey, CryptoErrno> {
+    pub fn public_key(&self) -> CryptoResult<RsaSignaturePublicKey> {
         let ctx = rsa::Rsa::from_public_components(
             self.ctx
                 .n()
@@ -205,10 +206,10 @@ impl RsaSignature {
         RsaSignature { raw }
     }
 
-    pub fn from_raw(alg: SignatureAlgorithm, raw: &[u8]) -> Result<Self, CryptoErrno> {
+    pub fn from_raw(alg: SignatureAlgorithm, raw: &[u8]) -> CryptoResult<Self> {
         let expected_len = (modulus_bits(alg)? / 8) as usize;
-        if raw.len() != expected_len  {
-            return Err(CryptoErrno::InvalidSignature);
+        if raw.len() != expected_len {
+            return Err(CryptoErrno::InvalidSignature.into());
         };
         Ok(Self::new(raw.to_vec()))
     }
@@ -277,14 +278,14 @@ impl RsaSignatureState<'_> {
 }
 
 impl SignatureStateLike for RsaSignatureState<'_> {
-    fn update(&mut self, input: &[u8]) -> Result<(), CryptoErrno> {
+    fn update(&mut self, input: &[u8]) -> CryptoResult<()> {
         self.signer
             .update(input)
             .map_err(|_| CryptoErrno::InternalError)?;
         Ok(())
     }
 
-    fn sign(&mut self) -> Result<Signature, CryptoErrno> {
+    fn sign(&mut self) -> CryptoResult<Signature> {
         let signature = self
             .signer
             .sign_to_vec()
@@ -329,14 +330,14 @@ impl RsaSignatureVerificationState<'_> {
 }
 
 impl SignatureVerificationStateLike for RsaSignatureVerificationState<'_> {
-    fn update(&mut self, input: &[u8]) -> Result<(), CryptoErrno> {
+    fn update(&mut self, input: &[u8]) -> CryptoResult<()> {
         self.verifier
             .update(input)
             .map_err(|_| CryptoErrno::InternalError)?;
         Ok(())
     }
 
-    fn verify(&self, signature: &Signature) -> Result<(), CryptoErrno> {
+    fn verify(&self, signature: &Signature) -> CryptoResult<()> {
         let signature = signature.inner();
         let signature = signature
             .as_any()
@@ -347,7 +348,7 @@ impl SignatureVerificationStateLike for RsaSignatureVerificationState<'_> {
             .verify(signature.as_ref())
             .map_err(|_| CryptoErrno::InvalidSignature)?
         {
-            return Err(CryptoErrno::InvalidSignature);
+            return Err(CryptoErrno::InvalidSignature.into());
         }
         Ok(())
     }
@@ -368,17 +369,17 @@ pub struct RsaSignaturePublicKey {
 }
 
 impl RsaSignaturePublicKey {
-    fn from_pkcs8(alg: SignatureAlgorithm, der: &[u8]) -> Result<Self, CryptoErrno> {
-        if der.len() >= 4096  {
-            return Err(CryptoErrno::InvalidKey);
+    fn from_pkcs8(alg: SignatureAlgorithm, der: &[u8]) -> CryptoResult<Self> {
+        if der.len() >= 4096 {
+            return Err(CryptoErrno::InvalidKey.into());
         };
         let ctx = rsa::Rsa::public_key_from_der(der).map_err(|_| CryptoErrno::InvalidKey)?;
         Ok(RsaSignaturePublicKey { alg, ctx })
     }
 
-    fn from_pem(alg: SignatureAlgorithm, pem: &[u8]) -> Result<Self, CryptoErrno> {
-        if pem.len() >= 4096  {
-            return Err(CryptoErrno::InvalidKey);
+    fn from_pem(alg: SignatureAlgorithm, pem: &[u8]) -> CryptoResult<Self> {
+        if pem.len() >= 4096 {
+            return Err(CryptoErrno::InvalidKey.into());
         };
         let ctx = rsa::Rsa::public_key_from_pem(pem)
             .or_else(|_| rsa::Rsa::public_key_from_pem_pkcs1(pem))
@@ -386,15 +387,15 @@ impl RsaSignaturePublicKey {
         Ok(RsaSignaturePublicKey { alg, ctx })
     }
 
-    fn from_local(alg: SignatureAlgorithm, local: &[u8]) -> Result<Self, CryptoErrno> {
-        if local.len() >= 1024  {
-            return Err(CryptoErrno::InvalidKey);
+    fn from_local(alg: SignatureAlgorithm, local: &[u8]) -> CryptoResult<Self> {
+        if local.len() >= 1024 {
+            return Err(CryptoErrno::InvalidKey.into());
         };
         let parts: RsaSignaturePublicKeyParts =
             rkyv::from_bytes::<RsaSignaturePublicKeyParts, rancor::Error>(local)
                 .map_err(|_| CryptoErrno::InvalidKey)?;
         if !(parts.version == RAW_ENCODING_VERSION && parts.alg_id == RAW_ENCODING_ALG_ID) {
-            return Err(CryptoErrno::InvalidKey);
+            return Err(CryptoErrno::InvalidKey.into());
         };
         let n = bn::BigNum::from_slice(&parts.n).map_err(|_| CryptoErrno::InvalidKey)?;
         let e = bn::BigNum::from_slice(&parts.e).map_err(|_| CryptoErrno::InvalidKey)?;
@@ -403,19 +404,19 @@ impl RsaSignaturePublicKey {
         Ok(RsaSignaturePublicKey { alg, ctx })
     }
 
-    fn to_pkcs8(&self) -> Result<Vec<u8>, CryptoErrno> {
+    fn to_pkcs8(&self) -> CryptoResult<Vec<u8>> {
         self.ctx
             .public_key_to_der()
-            .map_err(|_| CryptoErrno::InternalError)
+            .map_err(|_| CryptoErrno::InternalError.into())
     }
 
-    fn to_pem(&self) -> Result<Vec<u8>, CryptoErrno> {
+    fn to_pem(&self) -> CryptoResult<Vec<u8>> {
         self.ctx
             .public_key_to_pem()
-            .map_err(|_| CryptoErrno::InternalError)
+            .map_err(|_| CryptoErrno::InternalError.into())
     }
 
-    fn to_local(&self) -> Result<Vec<u8>, CryptoErrno> {
+    fn to_local(&self) -> CryptoResult<Vec<u8>> {
         let parts = RsaSignaturePublicKeyParts {
             version: RAW_ENCODING_VERSION,
             alg_id: RAW_ENCODING_ALG_ID,
@@ -432,35 +433,38 @@ impl RsaSignaturePublicKey {
         alg: SignatureAlgorithm,
         encoded: &[u8],
         encoding: PublickeyEncoding,
-    ) -> Result<Self, CryptoErrno> {
+    ) -> CryptoResult<Self> {
         let pk = match encoding {
             PublickeyEncoding::Pkcs8 => Self::from_pkcs8(alg, encoded)?,
             PublickeyEncoding::Pem => Self::from_pem(alg, encoded)?,
             PublickeyEncoding::Local => Self::from_local(alg, encoded)?,
-            _ => return Err(CryptoErrno::UnsupportedEncoding),
+            _ => return Err(CryptoErrno::UnsupportedEncoding.into()),
         };
         let modulus_size = pk.ctx.size();
         let min_modulus_bits = modulus_bits(alg)?;
         if !(modulus_size >= min_modulus_bits / 8 && modulus_size <= MAX_MODULUS_SIZE / 8) {
-            return Err(CryptoErrno::InvalidKey);
+            return Err(CryptoErrno::InvalidKey.into());
         };
         Ok(pk)
     }
 
-    pub fn export(&self, encoding: PublickeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub fn export(&self, encoding: PublickeyEncoding) -> CryptoResult<Vec<u8>> {
         match encoding {
             PublickeyEncoding::Pkcs8 => self.to_pkcs8(),
             PublickeyEncoding::Pem => self.to_pem(),
             PublickeyEncoding::Local => self.to_local(),
-            _ => Err(CryptoErrno::UnsupportedEncoding),
+            _ => Err(CryptoErrno::UnsupportedEncoding.into()),
         }
     }
 
-    pub(crate) fn verify(&self) -> Result<(), CryptoErrno> {
+    pub(crate) fn verify(&self) -> CryptoResult<()> {
         // check_key is only available on Rsa<Private>.  The strongest
         // validation available on a public key is a DER round-trip: export then
         // re-import so BoringSSL re-parses and validates the ASN.1 structure.
-        let der = self.ctx.public_key_to_der().map_err(|_| CryptoErrno::InvalidKey)?;
+        let der = self
+            .ctx
+            .public_key_to_der()
+            .map_err(|_| CryptoErrno::InvalidKey)?;
         rsa::Rsa::public_key_from_der(&der).map_err(|_| CryptoErrno::InvalidKey)?;
         Ok(())
     }

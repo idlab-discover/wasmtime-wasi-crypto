@@ -6,6 +6,7 @@ use crate::{
         wasi_ephemeral_crypto_common::CryptoErrno,
         wasi_ephemeral_crypto_symmetric::{SymmetricKey, SymmetricTag},
     },
+    error::CryptoResult,
     options::OptionsLike,
     rand::SecureRandom,
     symmetric::{
@@ -68,13 +69,13 @@ impl SymmetricKeyLike for AesGcmSymmetricKey {
         self
     }
 
-    fn as_raw(&self) -> Result<&[u8], CryptoErrno> {
+    fn as_raw(&self) -> CryptoResult<&[u8]> {
         Ok(&self.raw)
     }
 }
 
 impl AesGcmSymmetricKey {
-    fn new(alg: SymmetricAlgorithm, raw: &[u8]) -> Result<Self, CryptoErrno> {
+    fn new(alg: SymmetricAlgorithm, raw: &[u8]) -> CryptoResult<Self> {
         Ok(AesGcmSymmetricKey {
             alg,
             raw: raw.to_vec(),
@@ -93,23 +94,23 @@ impl AesGcmSymmetricKeyBuilder {
 }
 
 impl SymmetricKeyBuilder for AesGcmSymmetricKeyBuilder {
-    fn generate(&self, _options: Option<SymmetricOptions>) -> Result<SymmetricKey, CryptoErrno> {
+    fn generate(&self, _options: Option<SymmetricOptions>) -> CryptoResult<SymmetricKey> {
         let mut rng = SecureRandom::new();
         let mut raw = vec![0u8; self.key_len()?];
         rng.fill(&mut raw)?;
         self.import(&raw)
     }
 
-    fn import(&self, raw: &[u8]) -> Result<SymmetricKey, CryptoErrno> {
+    fn import(&self, raw: &[u8]) -> CryptoResult<SymmetricKey> {
         let key = AesGcmSymmetricKey::new(self.alg, raw)?;
         Ok(SymmetricKey::new(Box::new(key)))
     }
 
-    fn key_len(&self) -> Result<usize, CryptoErrno> {
+    fn key_len(&self) -> CryptoResult<usize> {
         match self.alg {
             SymmetricAlgorithm::Aes128Gcm => Ok(16),
             SymmetricAlgorithm::Aes256Gcm => Ok(32),
-            _ => Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => Err(CryptoErrno::UnsupportedAlgorithm.into()),
         }
     }
 }
@@ -120,7 +121,7 @@ impl AesGcmSymmetricState {
         key: Option<SymmetricKey>,
         options: Option<SymmetricOptions>,
         size_limit: Option<usize>,
-    ) -> Result<Self, CryptoErrno> {
+    ) -> CryptoResult<Self> {
         let key = key.ok_or(CryptoErrno::KeyRequired)?;
         let key = key.inner();
         let key = key
@@ -130,8 +131,8 @@ impl AesGcmSymmetricState {
         let options = options.as_ref().ok_or(CryptoErrno::NonceRequired)?;
         let inner = options.inner.lock().unwrap();
         let nonce_vec = inner.nonce.as_ref().ok_or(CryptoErrno::NonceRequired)?;
-        if nonce_vec.len() != NONCE_LEN  {
-            return Err(CryptoErrno::InvalidNonce);
+        if nonce_vec.len() != NONCE_LEN {
+            return Err(CryptoErrno::InvalidNonce.into());
         };
         let mut nonce = [0u8; NONCE_LEN];
         nonce.copy_from_slice(nonce_vec);
@@ -142,7 +143,7 @@ impl AesGcmSymmetricState {
             SymmetricAlgorithm::Aes256Gcm => {
                 AesGcmVariant::Aes256(Aes256Gcm::new(GenericArray::from_slice(key.as_raw()?)))
             }
-            _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
         };
         let state = AesGcmSymmetricState {
             alg,
@@ -161,11 +162,11 @@ impl SymmetricStateLike for AesGcmSymmetricState {
         self.alg
     }
 
-    fn options_get(&self, name: &str) -> Result<Vec<u8>, CryptoErrno> {
+    fn options_get(&self, name: &str) -> CryptoResult<Vec<u8>> {
         self.options.get(name)
     }
 
-    fn options_get_u64(&self, name: &str) -> Result<u64, CryptoErrno> {
+    fn options_get_u64(&self, name: &str) -> CryptoResult<u64> {
         self.options.get_u64(name)
     }
 
@@ -173,25 +174,22 @@ impl SymmetricStateLike for AesGcmSymmetricState {
         self.size_limit
     }
 
-    fn absorb_unchecked(&mut self, data: &[u8]) -> Result<(), CryptoErrno> {
+    fn absorb_unchecked(&mut self, data: &[u8]) -> CryptoResult<()> {
         self.ad.extend_from_slice(data);
         Ok(())
     }
 
-    fn max_tag_len(&mut self) -> Result<usize, CryptoErrno> {
+    fn max_tag_len(&mut self) -> CryptoResult<usize> {
         Ok(TAG_LEN)
     }
 
-    fn encrypt_unchecked(&mut self, data: &[u8]) -> Result<Vec<u8>, CryptoErrno> {
+    fn encrypt_unchecked(&mut self, data: &[u8]) -> CryptoResult<Vec<u8>> {
         let (mut out, tag) = self.encrypt_detached_unchecked(data)?;
         out.extend_from_slice(tag.as_ref());
         Ok(out)
     }
 
-    fn encrypt_detached_unchecked(
-        &mut self,
-        data: &[u8],
-    ) -> Result<(Vec<u8>, SymmetricTag), CryptoErrno> {
+    fn encrypt_detached_unchecked(&mut self, data: &[u8]) -> CryptoResult<(Vec<u8>, SymmetricTag)> {
         let nonce = self.nonce.as_ref().ok_or(CryptoErrno::NonceRequired)?;
         // if out.as_ptr() != data.as_ptr() {
         //     out.copy_from_slice(data);
@@ -212,15 +210,11 @@ impl SymmetricStateLike for AesGcmSymmetricState {
         Ok((out, SymmetricTag::new(self.alg, raw_tag)))
     }
 
-    fn decrypt_unchecked(&mut self, data: &[u8], raw_tag: &[u8]) -> Result<Vec<u8>, CryptoErrno> {
+    fn decrypt_unchecked(&mut self, data: &[u8], raw_tag: &[u8]) -> CryptoResult<Vec<u8>> {
         self.decrypt_detached_unchecked(data, raw_tag)
     }
 
-    fn decrypt_detached_unchecked(
-        &mut self,
-        data: &[u8],
-        raw_tag: &[u8],
-    ) -> Result<Vec<u8>, CryptoErrno> {
+    fn decrypt_detached_unchecked(&mut self, data: &[u8], raw_tag: &[u8]) -> CryptoResult<Vec<u8>> {
         let nonce = self.nonce.as_ref().ok_or(CryptoErrno::NonceRequired)?;
         // if out.as_ptr() != data.as_ptr() {
         //     out[..data.len()].copy_from_slice(data);

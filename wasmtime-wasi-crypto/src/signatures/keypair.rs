@@ -1,6 +1,7 @@
 use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::KeypairEncoding,
+    error::CryptoResult,
     signatures::{
         SignatureAlgorithm, SignatureAlgorithmFamily, SignatureOptions,
         ecdsa::EcdsaSignatureKeyPair, eddsa::EddsaSignatureKeyPair, publickey::SignaturePublicKey,
@@ -17,7 +18,7 @@ pub enum SignatureKeyPair {
 }
 
 impl SignatureKeyPair {
-    pub(crate) fn export(&self, encoding: KeypairEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub(crate) fn export(&self, encoding: KeypairEncoding) -> CryptoResult<Vec<u8>> {
         let encoded = match self {
             SignatureKeyPair::Ecdsa(kp) => kp.export(encoding)?,
             SignatureKeyPair::Eddsa(kp) => kp.export(encoding)?,
@@ -29,7 +30,7 @@ impl SignatureKeyPair {
     pub(crate) fn generate(
         alg: SignatureAlgorithm,
         options: Option<SignatureOptions>,
-    ) -> Result<SignatureKeyPair, CryptoErrno> {
+    ) -> CryptoResult<SignatureKeyPair> {
         let kp = match alg.family() {
             SignatureAlgorithmFamily::ECDSA => {
                 SignatureKeyPair::Ecdsa(EcdsaSignatureKeyPair::generate(alg, options)?)
@@ -48,7 +49,7 @@ impl SignatureKeyPair {
         alg: SignatureAlgorithm,
         encoded: &[u8],
         encoding: KeypairEncoding,
-    ) -> Result<SignatureKeyPair, CryptoErrno> {
+    ) -> CryptoResult<SignatureKeyPair> {
         let kp = match alg.family() {
             SignatureAlgorithmFamily::ECDSA => {
                 SignatureKeyPair::Ecdsa(EcdsaSignatureKeyPair::import(alg, encoded, encoding)?)
@@ -63,7 +64,7 @@ impl SignatureKeyPair {
         Ok(kp)
     }
 
-    pub(crate) fn public_key(&self) -> Result<SignaturePublicKey, CryptoErrno> {
+    pub(crate) fn public_key(&self) -> CryptoResult<SignaturePublicKey> {
         let pk = match self {
             SignatureKeyPair::Ecdsa(kp) => SignaturePublicKey::Ecdsa(kp.public_key()?),
             SignatureKeyPair::Eddsa(kp) => SignaturePublicKey::Eddsa(kp.public_key()?),
@@ -72,7 +73,7 @@ impl SignatureKeyPair {
         Ok(pk)
     }
 
-    pub(crate) fn secret_key(&self) -> Result<SignatureSecretKey, CryptoErrno> {
-        Err(CryptoErrno::NotImplemented)
+    pub(crate) fn secret_key(&self) -> CryptoResult<SignatureSecretKey> {
+        Err(CryptoErrno::NotImplemented.into())
     }
 }

@@ -6,6 +6,7 @@ use derivative::Derivative;
 use std::sync::Arc;
 
 use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::KeypairEncoding;
+use crate::error::CryptoResult;
 use crate::rand::SecureRandom;
 use crate::signatures::signature::{
     SignatureLike, SignatureStateLike, SignatureVerificationStateLike,
@@ -14,24 +15,9 @@ use ::sha2::{Digest, Sha256, Sha384};
 use k256::ecdsa::{
     self as ecdsa_k256, signature::DigestVerifier as _, signature::RandomizedDigestSigner as _,
 };
-use k256::elliptic_curve::sec1::ToEncodedPoint as _;
-use k256::pkcs8::{
-    DecodePrivateKey as _, DecodePublicKey as _,
-};
-use p256::ecdsa::{
-    self as ecdsa_p256, signature::DigestVerifier as _, signature::RandomizedDigestSigner as _,
-};
-use p256::elliptic_curve::sec1::ToEncodedPoint as _;
-use p256::pkcs8::{
-    DecodePrivateKey as _, DecodePublicKey as _,
-};
-use p384::ecdsa::{
-    self as ecdsa_p384, signature::DigestVerifier as _, signature::RandomizedDigestSigner as _,
-};
-use p384::elliptic_curve::sec1::ToEncodedPoint as _;
-use p384::pkcs8::{
-    DecodePrivateKey as _, DecodePublicKey as _,
-};
+use k256::pkcs8::{DecodePrivateKey as _, DecodePublicKey as _};
+use p256::ecdsa::{self as ecdsa_p256};
+use p384::ecdsa::{self as ecdsa_p384};
 use std::any::Any;
 
 #[derive(Debug, Clone)]
@@ -54,7 +40,7 @@ pub struct EcdsaSignatureKeyPair {
 }
 
 impl EcdsaSignatureKeyPair {
-    fn from_raw(alg: SignatureAlgorithm, raw: &[u8]) -> Result<Self, CryptoErrno> {
+    fn from_raw(alg: SignatureAlgorithm, raw: &[u8]) -> CryptoResult<Self> {
         let ctx = match alg {
             SignatureAlgorithm::ECDSA_P256_SHA256 => {
                 let ecdsa_sk = ecdsa_p256::SigningKey::from_bytes(raw.into())
@@ -71,7 +57,7 @@ impl EcdsaSignatureKeyPair {
                     .map_err(|_| CryptoErrno::InvalidKey)?;
                 EcdsaSigningKeyVariant::P384(ecdsa_sk)
             }
-            _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
         };
         Ok(EcdsaSignatureKeyPair {
             alg,
@@ -79,7 +65,7 @@ impl EcdsaSignatureKeyPair {
         })
     }
 
-    fn from_pkcs8(alg: SignatureAlgorithm, pkcs8: &[u8]) -> Result<Self, CryptoErrno> {
+    fn from_pkcs8(alg: SignatureAlgorithm, pkcs8: &[u8]) -> CryptoResult<Self> {
         let ctx = match alg {
             SignatureAlgorithm::ECDSA_P256_SHA256 => {
                 let ecdsa_sk = ecdsa_p256::SigningKey::from_pkcs8_der(pkcs8)
@@ -96,7 +82,7 @@ impl EcdsaSignatureKeyPair {
                     .map_err(|_| CryptoErrno::InvalidKey)?;
                 EcdsaSigningKeyVariant::P384(ecdsa_sk)
             }
-            _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
         };
         Ok(EcdsaSignatureKeyPair {
             alg,
@@ -104,7 +90,7 @@ impl EcdsaSignatureKeyPair {
         })
     }
 
-    fn from_pem(alg: SignatureAlgorithm, pem: &[u8]) -> Result<Self, CryptoErrno> {
+    fn from_pem(alg: SignatureAlgorithm, pem: &[u8]) -> CryptoResult<Self> {
         let ctx = match alg {
             SignatureAlgorithm::ECDSA_P256_SHA256 => {
                 let ecdsa_sk = ecdsa_p256::SigningKey::from_pkcs8_pem(
@@ -127,7 +113,7 @@ impl EcdsaSignatureKeyPair {
                 .map_err(|_| CryptoErrno::InvalidKey)?;
                 EcdsaSigningKeyVariant::P384(ecdsa_sk)
             }
-            _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
         };
         Ok(EcdsaSignatureKeyPair {
             alg,
@@ -135,7 +121,7 @@ impl EcdsaSignatureKeyPair {
         })
     }
 
-    fn as_raw(&self) -> Result<Vec<u8>, CryptoErrno> {
+    fn as_raw(&self) -> CryptoResult<Vec<u8>> {
         let raw = match self.ctx.as_ref() {
             EcdsaSigningKeyVariant::P256(x) => x.to_bytes().to_vec(),
             EcdsaSigningKeyVariant::K256(x) => x.to_bytes().to_vec(),
@@ -147,7 +133,7 @@ impl EcdsaSignatureKeyPair {
     pub fn generate(
         alg: SignatureAlgorithm,
         _options: Option<SignatureOptions>,
-    ) -> Result<Self, CryptoErrno> {
+    ) -> CryptoResult<Self> {
         let mut rng = SecureRandom::new();
         match alg {
             SignatureAlgorithm::ECDSA_P256_SHA256 => {
@@ -162,7 +148,7 @@ impl EcdsaSignatureKeyPair {
                 let ecdsa_sk = ecdsa_p384::SigningKey::random(&mut rng);
                 Self::from_raw(alg, ecdsa_sk.to_bytes().as_slice())
             }
-            _ => Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => Err(CryptoErrno::UnsupportedAlgorithm.into()),
         }
     }
 
@@ -170,30 +156,30 @@ impl EcdsaSignatureKeyPair {
         alg: SignatureAlgorithm,
         encoded: &[u8],
         encoding: KeypairEncoding,
-    ) -> Result<Self, CryptoErrno> {
+    ) -> CryptoResult<Self> {
         if !(alg == SignatureAlgorithm::ECDSA_P256_SHA256
             || alg == SignatureAlgorithm::ECDSA_K256_SHA256
             || alg == SignatureAlgorithm::ECDSA_P384_SHA384)
         {
-            return Err(CryptoErrno::UnsupportedAlgorithm);
+            return Err(CryptoErrno::UnsupportedAlgorithm.into());
         };
         let kp = match encoding {
             KeypairEncoding::Raw => EcdsaSignatureKeyPair::from_raw(alg, encoded)?,
             KeypairEncoding::Pkcs8 => EcdsaSignatureKeyPair::from_pkcs8(alg, encoded)?,
             KeypairEncoding::Pem => EcdsaSignatureKeyPair::from_pem(alg, encoded)?,
-            _ => return Err(CryptoErrno::UnsupportedEncoding),
+            _ => return Err(CryptoErrno::UnsupportedEncoding.into()),
         };
         Ok(kp)
     }
 
-    pub fn export(&self, encoding: KeypairEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub fn export(&self, encoding: KeypairEncoding) -> CryptoResult<Vec<u8>> {
         match encoding {
             KeypairEncoding::Raw => self.as_raw(),
-            _ => Err(CryptoErrno::UnsupportedEncoding),
+            _ => Err(CryptoErrno::UnsupportedEncoding.into()),
         }
     }
 
-    pub fn public_key(&self) -> Result<EcdsaSignaturePublicKey, CryptoErrno> {
+    pub fn public_key(&self) -> CryptoResult<EcdsaSignaturePublicKey> {
         let ctx = match self.ctx.as_ref() {
             EcdsaSigningKeyVariant::P256(x) => EcdsaVerifyingKeyVariant::P256(*x.verifying_key()),
             EcdsaSigningKeyVariant::K256(x) => EcdsaVerifyingKeyVariant::K256(*x.verifying_key()),
@@ -229,14 +215,14 @@ impl EcdsaSignature {
         EcdsaSignature { raw }
     }
 
-    pub fn from_raw(alg: SignatureAlgorithm, raw: &[u8]) -> Result<Self, CryptoErrno> {
+    pub fn from_raw(alg: SignatureAlgorithm, raw: &[u8]) -> CryptoResult<Self> {
         let expected_len = match alg {
             SignatureAlgorithm::ECDSA_P256_SHA256 | SignatureAlgorithm::ECDSA_K256_SHA256 => 64,
             SignatureAlgorithm::ECDSA_P384_SHA384 => 96,
-            _ => return Err(CryptoErrno::InvalidSignature),
+            _ => return Err(CryptoErrno::InvalidSignature.into()),
         };
         if raw.len() != expected_len {
-            return Err(CryptoErrno::InvalidSignature);
+            return Err(CryptoErrno::InvalidSignature.into());
         };
         Ok(Self::new(raw.to_vec()))
     }
@@ -263,7 +249,7 @@ impl EcdsaSignatureState {
 }
 
 impl SignatureStateLike for EcdsaSignatureState {
-    fn update(&mut self, input: &[u8]) -> Result<(), CryptoErrno> {
+    fn update(&mut self, input: &[u8]) -> CryptoResult<()> {
         match &mut self.h {
             HashVariant::Sha256(x) => x.update(input),
             HashVariant::Sha384(x) => x.update(input),
@@ -271,13 +257,13 @@ impl SignatureStateLike for EcdsaSignatureState {
         Ok(())
     }
 
-    fn sign(&mut self) -> Result<Signature, CryptoErrno> {
+    fn sign(&mut self) -> CryptoResult<Signature> {
         let mut rng = SecureRandom::new();
         let encoded_signature = match self.kp.ctx.as_ref() {
             EcdsaSigningKeyVariant::P256(x) => {
                 let digest = match &self.h {
                     HashVariant::Sha256(x) => x.clone(),
-                    _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+                    _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
                 };
                 let encoded_signature: ecdsa_p256::Signature =
                     x.sign_digest_with_rng(&mut rng, digest);
@@ -286,7 +272,7 @@ impl SignatureStateLike for EcdsaSignatureState {
             EcdsaSigningKeyVariant::K256(x) => {
                 let digest = match &self.h {
                     HashVariant::Sha256(x) => x.clone(),
-                    _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+                    _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
                 };
                 let encoded_signature: ecdsa_k256::Signature =
                     x.sign_digest_with_rng(&mut rng, digest);
@@ -295,7 +281,7 @@ impl SignatureStateLike for EcdsaSignatureState {
             EcdsaSigningKeyVariant::P384(x) => {
                 let digest = match &self.h {
                     HashVariant::Sha384(x) => x.clone(),
-                    _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+                    _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
                 };
                 let encoded_signature: ecdsa_p384::Signature =
                     x.sign_digest_with_rng(&mut rng, digest);
@@ -327,7 +313,7 @@ impl EcdsaSignatureVerificationState {
 }
 
 impl SignatureVerificationStateLike for EcdsaSignatureVerificationState {
-    fn update(&mut self, input: &[u8]) -> Result<(), CryptoErrno> {
+    fn update(&mut self, input: &[u8]) -> CryptoResult<()> {
         match &mut self.h {
             HashVariant::Sha256(x) => x.update(input),
             HashVariant::Sha384(x) => x.update(input),
@@ -335,7 +321,7 @@ impl SignatureVerificationStateLike for EcdsaSignatureVerificationState {
         Ok(())
     }
 
-    fn verify(&self, signature: &Signature) -> Result<(), CryptoErrno> {
+    fn verify(&self, signature: &Signature) -> CryptoResult<()> {
         let signature = signature.inner();
         let signature = signature
             .as_any()
@@ -348,7 +334,7 @@ impl SignatureVerificationStateLike for EcdsaSignatureVerificationState {
                     .map_err(|_| CryptoErrno::InvalidSignature)?;
                 let digest = match &self.h {
                     HashVariant::Sha256(x) => x.clone(),
-                    _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+                    _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
                 };
                 x.verify_digest(digest, &ecdsa_signature)
             }
@@ -357,7 +343,7 @@ impl SignatureVerificationStateLike for EcdsaSignatureVerificationState {
                     .map_err(|_| CryptoErrno::InvalidSignature)?;
                 let digest = match &self.h {
                     HashVariant::Sha256(x) => x.clone(),
-                    _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+                    _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
                 };
                 x.verify_digest(digest, &ecdsa_signature)
             }
@@ -366,7 +352,7 @@ impl SignatureVerificationStateLike for EcdsaSignatureVerificationState {
                     .map_err(|_| CryptoErrno::InvalidSignature)?;
                 let digest = match &self.h {
                     HashVariant::Sha384(x) => x.clone(),
-                    _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+                    _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
                 };
                 x.verify_digest(digest, &ecdsa_signature)
             }
@@ -391,7 +377,7 @@ pub struct EcdsaSignaturePublicKey {
 }
 
 impl EcdsaSignaturePublicKey {
-    fn from_sec(alg: SignatureAlgorithm, sec: &[u8]) -> Result<Self, CryptoErrno> {
+    fn from_sec(alg: SignatureAlgorithm, sec: &[u8]) -> CryptoResult<Self> {
         let ctx = match alg {
             SignatureAlgorithm::ECDSA_P256_SHA256 => {
                 let ecdsa_sk = ecdsa_p256::VerifyingKey::from_sec1_bytes(sec)
@@ -408,7 +394,7 @@ impl EcdsaSignaturePublicKey {
                     .map_err(|_| CryptoErrno::InvalidKey)?;
                 EcdsaVerifyingKeyVariant::P384(ecdsa_sk)
             }
-            _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
         };
         let pk = EcdsaSignaturePublicKey {
             alg,
@@ -417,7 +403,7 @@ impl EcdsaSignaturePublicKey {
         Ok(pk)
     }
 
-    fn from_pkcs8(alg: SignatureAlgorithm, pkcs8: &[u8]) -> Result<Self, CryptoErrno> {
+    fn from_pkcs8(alg: SignatureAlgorithm, pkcs8: &[u8]) -> CryptoResult<Self> {
         let ctx = match alg {
             SignatureAlgorithm::ECDSA_P256_SHA256 => {
                 let ecdsa_sk = ecdsa_p256::VerifyingKey::from_public_key_der(pkcs8)
@@ -434,7 +420,7 @@ impl EcdsaSignaturePublicKey {
                     .map_err(|_| CryptoErrno::InvalidKey)?;
                 EcdsaVerifyingKeyVariant::P384(ecdsa_sk)
             }
-            _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
         };
         let pk = EcdsaSignaturePublicKey {
             alg,
@@ -443,7 +429,7 @@ impl EcdsaSignaturePublicKey {
         Ok(pk)
     }
 
-    fn from_pem(alg: SignatureAlgorithm, pem: &[u8]) -> Result<Self, CryptoErrno> {
+    fn from_pem(alg: SignatureAlgorithm, pem: &[u8]) -> CryptoResult<Self> {
         let ctx = match alg {
             SignatureAlgorithm::ECDSA_P256_SHA256 => {
                 let ecdsa_sk = ecdsa_p256::VerifyingKey::from_public_key_pem(
@@ -466,7 +452,7 @@ impl EcdsaSignaturePublicKey {
                 .map_err(|_| CryptoErrno::InvalidKey)?;
                 EcdsaVerifyingKeyVariant::P384(ecdsa_sk)
             }
-            _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
         };
         let pk = EcdsaSignaturePublicKey {
             alg,
@@ -475,11 +461,11 @@ impl EcdsaSignaturePublicKey {
         Ok(pk)
     }
 
-    fn from_raw(alg: SignatureAlgorithm, raw: &[u8]) -> Result<Self, CryptoErrno> {
+    fn from_raw(alg: SignatureAlgorithm, raw: &[u8]) -> CryptoResult<Self> {
         Self::from_sec(alg, raw)
     }
 
-    fn as_sec(&self, compress: bool) -> Result<Vec<u8>, CryptoErrno> {
+    fn as_sec(&self, compress: bool) -> CryptoResult<Vec<u8>> {
         let raw = match self.ctx.as_ref() {
             EcdsaVerifyingKeyVariant::P256(x) => x.to_encoded_point(compress).to_bytes().to_vec(),
             EcdsaVerifyingKeyVariant::K256(x) => x.to_encoded_point(compress).to_bytes().to_vec(),
@@ -488,7 +474,7 @@ impl EcdsaSignaturePublicKey {
         Ok(raw)
     }
 
-    fn as_raw(&self) -> Result<Vec<u8>, CryptoErrno> {
+    fn as_raw(&self) -> CryptoResult<Vec<u8>> {
         self.as_sec(true)
     }
 
@@ -496,25 +482,25 @@ impl EcdsaSignaturePublicKey {
         alg: SignatureAlgorithm,
         encoded: &[u8],
         encoding: PublickeyEncoding,
-    ) -> Result<Self, CryptoErrno> {
+    ) -> CryptoResult<Self> {
         match encoding {
             PublickeyEncoding::Raw => Self::from_raw(alg, encoded),
             PublickeyEncoding::Sec => Self::from_sec(alg, encoded),
             PublickeyEncoding::Pkcs8 => Self::from_pkcs8(alg, encoded),
             PublickeyEncoding::Pem => Self::from_pem(alg, encoded),
-            _ => Err(CryptoErrno::UnsupportedEncoding),
+            _ => Err(CryptoErrno::UnsupportedEncoding.into()),
         }
     }
 
-    pub fn export(&self, encoding: PublickeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub fn export(&self, encoding: PublickeyEncoding) -> CryptoResult<Vec<u8>> {
         match encoding {
             PublickeyEncoding::Raw => self.as_raw(),
             PublickeyEncoding::Sec => self.as_sec(false),
-            _ => Err(CryptoErrno::UnsupportedEncoding),
+            _ => Err(CryptoErrno::UnsupportedEncoding.into()),
         }
     }
 
-    pub(crate) fn verify(&self) -> Result<(), CryptoErrno> {
+    pub(crate) fn verify(&self) -> CryptoResult<()> {
         // Import validates point-on-curve and non-identity via from_sec1_bytes;
         // no stricter check is available through the p256/k256/p384 public API.
         Ok(())

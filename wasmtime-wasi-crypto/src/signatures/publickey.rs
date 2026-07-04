@@ -1,5 +1,6 @@
 use crate::{
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::{CryptoErrno, PublickeyEncoding},
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::PublickeyEncoding,
+    error::CryptoResult,
     signatures::{
         SignatureAlgorithm, SignatureAlgorithmFamily, ecdsa::EcdsaSignaturePublicKey,
         eddsa::EddsaSignaturePublicKey, rsa::RsaSignaturePublicKey,
@@ -26,7 +27,7 @@ impl SignaturePublicKey {
         alg: SignatureAlgorithm,
         encoded: &[u8],
         encoding: PublickeyEncoding,
-    ) -> Result<SignaturePublicKey, CryptoErrno> {
+    ) -> CryptoResult<SignaturePublicKey> {
         let pk = match alg.family() {
             SignatureAlgorithmFamily::ECDSA => {
                 SignaturePublicKey::Ecdsa(EcdsaSignaturePublicKey::import(alg, encoded, encoding)?)
@@ -41,7 +42,7 @@ impl SignaturePublicKey {
         Ok(pk)
     }
 
-    pub(crate) fn export(&self, encoding: PublickeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub(crate) fn export(&self, encoding: PublickeyEncoding) -> CryptoResult<Vec<u8>> {
         let raw_pk = match self {
             SignaturePublicKey::Ecdsa(pk) => pk.export(encoding)?,
             SignaturePublicKey::Eddsa(pk) => pk.export(encoding)?,
@@ -50,7 +51,7 @@ impl SignaturePublicKey {
         Ok(raw_pk)
     }
 
-    pub(crate) fn verify(pk: &SignaturePublicKey) -> Result<(), CryptoErrno> {
+    pub(crate) fn verify(pk: &SignaturePublicKey) -> CryptoResult<()> {
         match pk {
             SignaturePublicKey::Ecdsa(pk) => pk.verify(),
             SignaturePublicKey::Eddsa(pk) => pk.verify(),

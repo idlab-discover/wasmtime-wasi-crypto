@@ -6,10 +6,10 @@ use std::{
 use subtle::ConstantTimeEq;
 
 use crate::{
-    bindings::wasi::crypto::{
-        wasi_ephemeral_crypto_common::CryptoErrno,
-        wasi_ephemeral_crypto_signatures::{SignatureKeypair, SignaturePublickey},
+    bindings::wasi::crypto::wasi_ephemeral_crypto_signatures::{
+        SignatureKeypair, SignaturePublickey,
     },
+    error::CryptoResult,
     signatures::{
         SignatureAlgorithm, SignatureAlgorithmFamily,
         ecdsa::{EcdsaSignature, EcdsaSignatureState, EcdsaSignatureVerificationState},
@@ -46,7 +46,7 @@ impl Signature {
         }
     }
 
-    pub fn from_raw(alg: SignatureAlgorithm, encoded: &[u8]) -> Result<Self, CryptoErrno> {
+    pub fn from_raw(alg: SignatureAlgorithm, encoded: &[u8]) -> CryptoResult<Self> {
         let signature = match alg.family() {
             SignatureAlgorithmFamily::ECDSA => {
                 Signature::new(Box::new(EcdsaSignature::from_raw(alg, encoded)?))
@@ -104,7 +104,7 @@ impl SignatureState {
     pub(crate) fn open(
         table: &mut ResourceTable,
         kp: Resource<SignatureKeypair>,
-    ) -> Result<Resource<SignatureState>, CryptoErrno> {
+    ) -> CryptoResult<Resource<SignatureState>> {
         let kp = table.get(&kp)?.clone().into_signature_keypair()?;
         let signature_state = match kp {
             SignatureKeyPair::Ecdsa(kp) => {
@@ -121,8 +121,8 @@ impl SignatureState {
 }
 
 pub trait SignatureStateLike: Sync + Send {
-    fn update(&mut self, input: &[u8]) -> Result<(), CryptoErrno>;
-    fn sign(&mut self) -> Result<Signature, CryptoErrno>;
+    fn update(&mut self, input: &[u8]) -> CryptoResult<()>;
+    fn sign(&mut self) -> CryptoResult<Signature>;
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -157,7 +157,7 @@ impl SignatureVerificationState {
     pub(crate) fn open(
         table: &mut ResourceTable,
         pk: Resource<SignaturePublickey>,
-    ) -> Result<Resource<SignatureVerificationState>, CryptoErrno> {
+    ) -> CryptoResult<Resource<SignatureVerificationState>> {
         let pk = table.get(&pk)?.clone().into_signature_public_key()?;
         let signature_verification_state = match pk {
             SignaturePublicKey::Ecdsa(pk) => {
@@ -176,6 +176,6 @@ impl SignatureVerificationState {
 }
 
 pub trait SignatureVerificationStateLike: Sync + Send {
-    fn update(&mut self, input: &[u8]) -> Result<(), CryptoErrno>;
-    fn verify(&self, signature: &Signature) -> Result<(), CryptoErrno>;
+    fn update(&mut self, input: &[u8]) -> CryptoResult<()>;
+    fn verify(&self, signature: &Signature) -> CryptoResult<()>;
 }

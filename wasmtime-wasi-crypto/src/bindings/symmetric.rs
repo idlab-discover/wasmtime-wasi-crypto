@@ -3,6 +3,7 @@ use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
     SymmetricTag, U64, Version,
 };
 use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_symmetric::{Host, StoredKeyId};
+use crate::error::CryptoResult;
 
 impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     #[doc = "/ Generate a new symmetric key for a given algorithm."]
@@ -14,7 +15,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         algorithm: wasmtime::component::__internal::String,
         options: Option<wasmtime::component::Resource<Options>>,
-    ) -> Result<wasmtime::component::Resource<SymmetricKey>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<SymmetricKey>> {
         let options = match options {
             Some(options_handle) => Some(
                 self.table
@@ -39,7 +40,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         algorithm: wasmtime::component::__internal::String,
         raw: wasmtime::component::__internal::Vec<u8>,
-    ) -> Result<wasmtime::component::Resource<SymmetricKey>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<SymmetricKey>> {
         let symmetric_key = SymmetricKey::import(&algorithm, &raw)?;
         let handle = self.table.push(symmetric_key)?;
         Ok(handle)
@@ -53,7 +54,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn symmetric_key_export(
         &mut self,
         symmetric_key: wasmtime::component::Resource<SymmetricKey>,
-    ) -> Result<wasmtime::component::Resource<ArrayOutput>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<ArrayOutput>> {
         let symmetric_key = self.table.get(&symmetric_key)?;
 
         let raw = symmetric_key.inner().as_raw()?.to_vec();
@@ -68,7 +69,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn symmetric_key_close(
         &mut self,
         symmetric_key: wasmtime::component::Resource<SymmetricKey>,
-    ) -> Result<(), CryptoErrno> {
+    ) -> CryptoResult<()> {
         debug_assert!(symmetric_key.owned());
         let _options: SymmetricKey = self.table.delete(symmetric_key)?;
         Ok(())
@@ -92,8 +93,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         algorithm: wasmtime::component::__internal::String,
         options: Option<wasmtime::component::Resource<Options>>,
-    ) -> Result<wasmtime::component::Resource<SymmetricKey>, CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<wasmtime::component::Resource<SymmetricKey>> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 
     #[doc = "/ __(optional)__"]
@@ -106,8 +107,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         symmetric_key: wasmtime::component::Resource<SymmetricKey>,
-    ) -> Result<StoredKeyId, CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<StoredKeyId> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 
     #[doc = "/ __(optional)__"]
@@ -136,8 +137,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         symmetric_key_old: wasmtime::component::Resource<SymmetricKey>,
         symmetric_key_new: wasmtime::component::Resource<SymmetricKey>,
-    ) -> Result<Version, CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<Version> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 
     #[doc = "/ __(optional)__"]
@@ -149,8 +150,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn symmetric_key_id(
         &mut self,
         symmetric_key: wasmtime::component::Resource<SymmetricKey>,
-    ) -> Result<(StoredKeyId, Version), CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<(StoredKeyId, Version)> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 
     #[doc = "/ __(optional)__"]
@@ -166,8 +167,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         symmetric_key_id: StoredKeyId,
         symmetric_key_version: Version,
-    ) -> Result<wasmtime::component::Resource<SymmetricKey>, CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<wasmtime::component::Resource<SymmetricKey>> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 
     #[doc = "/ Create a new state to absorb and produce data using symmetric operations."]
@@ -350,7 +351,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         algorithm: wasmtime::component::__internal::String,
         key: Option<wasmtime::component::Resource<SymmetricKey>>,
         options: Option<wasmtime::component::Resource<Options>>,
-    ) -> Result<wasmtime::component::Resource<SymmetricState>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<SymmetricState>> {
         let key = match key {
             None => None,
             Some(symmetric_key_handle) => Some(self.table.get(&symmetric_key_handle)?),
@@ -380,7 +381,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         state: wasmtime::component::Resource<SymmetricState>,
         name: wasmtime::component::__internal::String,
-    ) -> Result<Vec<u8>, CryptoErrno> {
+    ) -> CryptoResult<Vec<u8>> {
         let symmetric_state = self.table.get(&state)?;
         let v = symmetric_state.inner().options_get(&name)?;
         // if v_len > value.len() {
@@ -398,7 +399,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         state: wasmtime::component::Resource<SymmetricState>,
         name: wasmtime::component::__internal::String,
-    ) -> Result<U64, CryptoErrno> {
+    ) -> CryptoResult<U64> {
         let symmetric_state = self.table.get(&state)?;
         let v = symmetric_state.inner().options_get_u64(&name)?;
         Ok(v)
@@ -410,7 +411,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn symmetric_state_clone(
         &mut self,
         state: wasmtime::component::Resource<SymmetricState>,
-    ) -> Result<wasmtime::component::Resource<SymmetricState>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<SymmetricState>> {
         let symmetric_state = self.table.get(&state)?;
         let symmetric_state = symmetric_state.clone();
         let handle = self.table.push(symmetric_state)?;
@@ -423,7 +424,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn symmetric_state_close(
         &mut self,
         state: wasmtime::component::Resource<SymmetricState>,
-    ) -> Result<(), CryptoErrno> {
+    ) -> CryptoResult<()> {
         debug_assert!(state.owned());
         let _state: SymmetricState = self.table.delete(state)?;
         Ok(())
@@ -445,9 +446,10 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         state: wasmtime::component::Resource<SymmetricState>,
         data: wasmtime::component::__internal::Vec<u8>,
-    ) -> Result<(), CryptoErrno> {
+    ) -> CryptoResult<()> {
         let symmetric_state = self.table.get(&state)?;
-        symmetric_state.locked(|mut state| state.absorb(&data))
+        symmetric_state.locked(|mut state| state.absorb(&data))?;
+        Ok(())
     }
 
     #[doc = "/ Squeeze bytes from the state."]
@@ -464,9 +466,9 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn symmetric_state_squeeze(
         &mut self,
         state: wasmtime::component::Resource<SymmetricState>,
-    ) -> Result<wasmtime::component::__internal::Vec<u8>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::__internal::Vec<u8>> {
         let symmetric_state = self.table.get(&state)?;
-        symmetric_state.locked(|mut state| state.squeeze_unchecked())
+        Ok(symmetric_state.locked(|mut state| state.squeeze_unchecked())?)
     }
 
     #[doc = "/ Compute and return a tag for all the data injected into the state so far."]
@@ -482,7 +484,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn symmetric_state_squeeze_tag(
         &mut self,
         state: wasmtime::component::Resource<SymmetricState>,
-    ) -> Result<wasmtime::component::Resource<SymmetricTag>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<SymmetricTag>> {
         let symmetric_state = self.table.get(&state)?;
         let tag = symmetric_state.locked(|mut state| state.squeeze_tag())?;
         let handle = self.table.push(tag)?;
@@ -499,7 +501,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         state: wasmtime::component::Resource<SymmetricState>,
         alg_str: wasmtime::component::__internal::String,
-    ) -> Result<wasmtime::component::Resource<SymmetricKey>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<SymmetricKey>> {
         let symmetric_state = self.table.get(&state)?;
         let tag = symmetric_state.locked(|mut state| state.squeeze_key(&alg_str))?;
         let handle = self.table.push(tag)?;
@@ -518,7 +520,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn symmetric_state_max_tag_len(
         &mut self,
         state: wasmtime::component::Resource<SymmetricState>,
-    ) -> Result<Size, CryptoErrno> {
+    ) -> CryptoResult<Size> {
         let symmetric_state = self.table.get(&state)?;
         let max_tag_len = symmetric_state.inner().max_tag_len()?;
         Ok(max_tag_len as u32)
@@ -537,9 +539,9 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         state: wasmtime::component::Resource<SymmetricState>,
         data: wasmtime::component::__internal::Vec<u8>,
-    ) -> Result<wasmtime::component::__internal::Vec<u8>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::__internal::Vec<u8>> {
         let symmetric_state = self.table.get(&state)?;
-        symmetric_state.locked(|mut state| state.encrypt(&data))
+        Ok(symmetric_state.locked(|mut state| state.encrypt(&data))?)
     }
 
     #[doc = "/ Encrypt data, with a detached tag."]
@@ -555,13 +557,10 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         state: wasmtime::component::Resource<SymmetricState>,
         data: wasmtime::component::__internal::Vec<u8>,
-    ) -> Result<
-        (
-            wasmtime::component::__internal::Vec<u8>,
-            wasmtime::component::Resource<SymmetricTag>,
-        ),
-        CryptoErrno,
-    > {
+    ) -> CryptoResult<(
+        wasmtime::component::__internal::Vec<u8>,
+        wasmtime::component::Resource<SymmetricTag>,
+    )> {
         let symmetric_state = self.table.get(&state)?;
         let (out, symmetric_tag) = symmetric_state.inner().encrypt_detached(&data)?;
         let handle = self.table.push(symmetric_tag)?;
@@ -582,9 +581,9 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         state: wasmtime::component::Resource<SymmetricState>,
         data: wasmtime::component::__internal::Vec<u8>,
         out_len: u32,
-    ) -> Result<wasmtime::component::__internal::Vec<u8>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::__internal::Vec<u8>> {
         let symmetric_state = self.table.get(&state)?;
-        symmetric_state.locked(|mut state| state.decrypt(&data, out_len as usize))
+        Ok(symmetric_state.locked(|mut state| state.decrypt(&data, out_len as usize))?)
     }
 
     #[doc = "/ - **Stream cipher:** returns `invalid_operation` since stream ciphers do not include authentication tags."]
@@ -603,9 +602,9 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         state: wasmtime::component::Resource<SymmetricState>,
         data: wasmtime::component::__internal::Vec<u8>,
         raw_tag: wasmtime::component::__internal::Vec<u8>,
-    ) -> Result<wasmtime::component::__internal::Vec<u8>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::__internal::Vec<u8>> {
         let symmetric_state = self.table.get(&state)?;
-        symmetric_state.locked(|mut state| state.decrypt_detached(&data, &raw_tag))
+        Ok(symmetric_state.locked(|mut state| state.decrypt_detached(&data, &raw_tag))?)
     }
 
     #[doc = "/ Make it impossible to recover the previous state."]
@@ -616,9 +615,10 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn symmetric_state_ratchet(
         &mut self,
         state: wasmtime::component::Resource<SymmetricState>,
-    ) -> Result<(), CryptoErrno> {
+    ) -> CryptoResult<()> {
         let symmetric_state = self.table.get(&state)?;
-        symmetric_state.locked(|mut state| state.ratchet())
+        symmetric_state.locked(|mut state| state.ratchet())?;
+        Ok(())
     }
 
     #[doc = "/ Return the length of an authentication tag."]
@@ -627,7 +627,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn symmetric_tag_len(
         &mut self,
         symmetric_tag: wasmtime::component::Resource<SymmetricTag>,
-    ) -> Result<Size, CryptoErrno> {
+    ) -> CryptoResult<Size> {
         let symmetric_tag = self.table.get(&symmetric_tag)?;
         Ok(symmetric_tag.as_ref().len() as u32)
     }
@@ -644,7 +644,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn symmetric_tag_pull(
         &mut self,
         symmetric_tag: wasmtime::component::Resource<SymmetricTag>,
-    ) -> Result<wasmtime::component::__internal::Vec<u8>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::__internal::Vec<u8>> {
         let symmetric_tag: SymmetricTag = self.table.delete(symmetric_tag)?;
         let out = symmetric_tag.as_ref().to_vec();
         Ok(out)
@@ -669,9 +669,10 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         symmetric_tag: wasmtime::component::Resource<SymmetricTag>,
         expected_raw_tag: wasmtime::component::__internal::Vec<u8>,
-    ) -> Result<(), CryptoErrno> {
+    ) -> CryptoResult<()> {
         let symmetric_tag = self.table.get(&symmetric_tag)?;
-        symmetric_tag.verify(&expected_raw_tag)
+        symmetric_tag.verify(&expected_raw_tag)?;
+        Ok(())
     }
 
     #[doc = "/ Explicitly destroy an unused authentication tag."]
@@ -682,7 +683,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn symmetric_tag_close(
         &mut self,
         symmetric_tag: wasmtime::component::Resource<SymmetricTag>,
-    ) -> Result<(), CryptoErrno> {
+    ) -> CryptoResult<()> {
         debug_assert!(symmetric_tag.owned());
         let _symmetric_tag: SymmetricTag = self.table.delete(symmetric_tag)?;
         Ok(())

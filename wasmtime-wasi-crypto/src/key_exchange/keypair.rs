@@ -1,8 +1,8 @@
 #[cfg(feature = "pqcrypto")]
 use crate::key_exchange::kem::{Kyber768KeyPairBuilder, Kyber1024KeyPairBuilder};
 use crate::{
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::KeypairEncoding,
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::{CryptoErrno, KeypairEncoding},
+    error::CryptoResult,
     key_exchange::{
         KxAlgorithm, KxOptions, dh::X25519KeyPairBuilder, publickey::KxPublicKey,
         secretkey::KxSecretKey,
@@ -19,7 +19,7 @@ pub struct KxKeyPair {
 }
 
 pub trait KxKeyPairBuilder {
-    fn generate(&self, options: Option<KxOptions>) -> Result<KxKeyPair, CryptoErrno>;
+    fn generate(&self, options: Option<KxOptions>) -> CryptoResult<KxKeyPair>;
 }
 
 impl KxKeyPair {
@@ -44,7 +44,7 @@ impl KxKeyPair {
         self.inner().alg()
     }
 
-    pub fn builder(alg: KxAlgorithm) -> Result<Box<dyn KxKeyPairBuilder>, CryptoErrno> {
+    pub fn builder(alg: KxAlgorithm) -> CryptoResult<Box<dyn KxKeyPairBuilder>> {
         let builder = match alg {
             KxAlgorithm::X25519 => X25519KeyPairBuilder::new(alg),
             #[cfg(feature = "pqcrypto")]
@@ -59,26 +59,23 @@ impl KxKeyPair {
         Ok(builder)
     }
 
-    pub fn generate(
-        alg: KxAlgorithm,
-        options: Option<KxOptions>,
-    ) -> Result<KxKeyPair, CryptoErrno> {
+    pub fn generate(alg: KxAlgorithm, options: Option<KxOptions>) -> CryptoResult<KxKeyPair> {
         let builder = Self::builder(alg)?;
         builder.generate(options)
     }
 
-    pub(crate) fn export(&self, encoding: KeypairEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub(crate) fn export(&self, encoding: KeypairEncoding) -> CryptoResult<Vec<u8>> {
         match encoding {
             KeypairEncoding::Raw => self.inner().as_raw(),
-            _ => Err(CryptoErrno::UnsupportedEncoding),
+            _ => Err(CryptoErrno::UnsupportedEncoding.into()),
         }
     }
 
-    pub(crate) fn public_key(&self) -> Result<KxPublicKey, CryptoErrno> {
+    pub(crate) fn public_key(&self) -> CryptoResult<KxPublicKey> {
         self.inner().publickey()
     }
 
-    pub(crate) fn secret_key(&self) -> Result<KxSecretKey, CryptoErrno> {
+    pub(crate) fn secret_key(&self) -> CryptoResult<KxSecretKey> {
         self.inner().secretkey()
     }
 }
@@ -86,13 +83,13 @@ impl KxKeyPair {
 pub trait KxKeyPairLike: Sync + Send {
     fn as_any(&self) -> &dyn Any;
     fn alg(&self) -> KxAlgorithm;
-    fn as_raw(&self) -> Result<Vec<u8>, CryptoErrno> {
+    fn as_raw(&self) -> CryptoResult<Vec<u8>> {
         let pk_raw = self.publickey()?.as_raw()?;
         let sk_raw = self.secretkey()?.as_raw()?;
         let mut combined_raw = pk_raw;
         combined_raw.extend_from_slice(&sk_raw);
         Ok(combined_raw)
     }
-    fn publickey(&self) -> Result<KxPublicKey, CryptoErrno>;
-    fn secretkey(&self) -> Result<KxSecretKey, CryptoErrno>;
+    fn publickey(&self) -> CryptoResult<KxPublicKey>;
+    fn secretkey(&self) -> CryptoResult<KxSecretKey>;
 }

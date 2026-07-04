@@ -2,6 +2,7 @@ use subtle::ConstantTimeEq;
 use zeroize::Zeroize;
 
 use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_symmetric::SymmetricTag;
+use crate::error::CryptoResult;
 use crate::options::OptionsLike;
 use crate::rand::SecureRandom;
 use crate::symmetric::key::SymmetricKeyBuilder;
@@ -53,13 +54,13 @@ impl SymmetricKeyLike for XoodyakSymmetricKey {
         self
     }
 
-    fn as_raw(&self) -> Result<&[u8], CryptoErrno> {
+    fn as_raw(&self) -> CryptoResult<&[u8]> {
         Ok(&self.raw)
     }
 }
 
 impl XoodyakSymmetricKey {
-    fn new(alg: SymmetricAlgorithm, raw: &[u8]) -> Result<Self, CryptoErrno> {
+    fn new(alg: SymmetricAlgorithm, raw: &[u8]) -> CryptoResult<Self> {
         Ok(XoodyakSymmetricKey {
             alg,
             raw: raw.to_vec(),
@@ -78,23 +79,23 @@ impl XoodyakSymmetricKeyBuilder {
 }
 
 impl SymmetricKeyBuilder for XoodyakSymmetricKeyBuilder {
-    fn generate(&self, _options: Option<SymmetricOptions>) -> Result<SymmetricKey, CryptoErrno> {
+    fn generate(&self, _options: Option<SymmetricOptions>) -> CryptoResult<SymmetricKey> {
         let mut rng = SecureRandom::new();
         let mut raw = vec![0u8; self.key_len()?];
         rng.fill(&mut raw)?;
         self.import(&raw)
     }
 
-    fn import(&self, raw: &[u8]) -> Result<SymmetricKey, CryptoErrno> {
+    fn import(&self, raw: &[u8]) -> CryptoResult<SymmetricKey> {
         let key = XoodyakSymmetricKey::new(self.alg, raw)?;
         Ok(SymmetricKey::new(Box::new(key)))
     }
 
-    fn key_len(&self) -> Result<usize, CryptoErrno> {
+    fn key_len(&self) -> CryptoResult<usize> {
         match self.alg {
             SymmetricAlgorithm::Xoodyak128 => Ok(16),
             SymmetricAlgorithm::Xoodyak160 => Ok(20),
-            _ => Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => Err(CryptoErrno::UnsupportedAlgorithm.into()),
         }
     }
 }
@@ -105,7 +106,7 @@ impl XoodyakSymmetricState {
         key: Option<SymmetricKey>,
         options: Option<SymmetricOptions>,
         size_limit: Option<usize>,
-    ) -> Result<Self, CryptoErrno> {
+    ) -> CryptoResult<Self> {
         let key = match key {
             None => None,
             Some(key) => {
@@ -143,14 +144,14 @@ impl SymmetricStateLike for XoodyakSymmetricState {
         self.alg
     }
 
-    fn options_get(&self, name: &str) -> Result<Vec<u8>, CryptoErrno> {
+    fn options_get(&self, name: &str) -> CryptoResult<Vec<u8>> {
         self.options
             .as_ref()
             .ok_or(CryptoErrno::OptionNotSet)?
             .get(name)
     }
 
-    fn options_get_u64(&self, name: &str) -> Result<u64, CryptoErrno> {
+    fn options_get_u64(&self, name: &str) -> CryptoResult<u64> {
         self.options
             .as_ref()
             .ok_or(CryptoErrno::OptionNotSet)?
@@ -161,59 +162,56 @@ impl SymmetricStateLike for XoodyakSymmetricState {
         self.size_limit
     }
 
-    fn absorb_unchecked(&mut self, data: &[u8]) -> Result<(), CryptoErrno> {
+    fn absorb_unchecked(&mut self, data: &[u8]) -> CryptoResult<()> {
         self.xoodyak_state.absorb(data);
         Ok(())
     }
 
-    fn squeeze_unchecked(&mut self) -> Result<Vec<u8>, CryptoErrno> {
+    fn squeeze_unchecked(&mut self) -> CryptoResult<Vec<u8>> {
         let mut out = vec![0u8; XOODYAK_AUTH_TAG_BYTES];
         self.xoodyak_state.squeeze(&mut out);
         Ok(out)
     }
 
-    fn squeeze_key(&mut self, alg_str: &str) -> Result<SymmetricKey, CryptoErrno> {
+    fn squeeze_key(&mut self, alg_str: &str) -> CryptoResult<SymmetricKey> {
         let builder = SymmetricKey::builder(alg_str)?;
         let mut raw = vec![0u8; builder.key_len()?];
         self.xoodyak_state.squeeze_key(&mut raw);
         builder.import(&raw)
     }
 
-    fn squeeze_tag(&mut self) -> Result<SymmetricTag, CryptoErrno> {
+    fn squeeze_tag(&mut self) -> CryptoResult<SymmetricTag> {
         let mut raw_tag = vec![0u8; XOODYAK_AUTH_TAG_BYTES];
         self.xoodyak_state.squeeze(&mut raw_tag);
         let symmetric_tag = SymmetricTag::new(self.alg(), raw_tag);
         Ok(symmetric_tag)
     }
 
-    fn max_tag_len(&mut self) -> Result<usize, CryptoErrno> {
+    fn max_tag_len(&mut self) -> CryptoResult<usize> {
         Ok(XOODYAK_AUTH_TAG_BYTES)
     }
 
-    fn encrypt_unchecked(&mut self, data: &[u8]) -> Result<Vec<u8>, CryptoErrno> {
+    fn encrypt_unchecked(&mut self, data: &[u8]) -> CryptoResult<Vec<u8>> {
         let ct_len = data
             .len()
             .checked_add(XOODYAK_AUTH_TAG_BYTES)
             .ok_or(CryptoErrno::Overflow)?;
         let mut out = vec![0u8; ct_len];
         match self.xoodyak_state.aead_encrypt(&mut out, Some(data)) {
-            Err(XoodyakError::KeyRequired) => Err(CryptoErrno::InvalidOperation),
-            Err(_) => Err(CryptoErrno::Overflow),
+            Err(XoodyakError::KeyRequired) => Err(CryptoErrno::InvalidOperation.into()),
+            Err(_) => Err(CryptoErrno::Overflow.into()),
             Ok(()) => Ok(out),
         }
     }
 
-    fn encrypt_detached_unchecked(
-        &mut self,
-        data: &[u8],
-    ) -> Result<(Vec<u8>, SymmetricTag), CryptoErrno> {
+    fn encrypt_detached_unchecked(&mut self, data: &[u8]) -> CryptoResult<(Vec<u8>, SymmetricTag)> {
         let mut out = vec![0u8; data.len()];
         match self
             .xoodyak_state
             .aead_encrypt_detached(&mut out, Some(data))
         {
-            Err(XoodyakError::KeyRequired) => Err(CryptoErrno::InvalidOperation),
-            Err(_) => Err(CryptoErrno::Overflow),
+            Err(XoodyakError::KeyRequired) => Err(CryptoErrno::InvalidOperation.into()),
+            Err(_) => Err(CryptoErrno::Overflow.into()),
             Ok(xoodyak_tag) => {
                 let symmetric_tag = SymmetricTag::new(self.alg(), xoodyak_tag.as_ref().to_vec());
                 Ok((out, symmetric_tag))
@@ -221,20 +219,16 @@ impl SymmetricStateLike for XoodyakSymmetricState {
         }
     }
 
-    fn decrypt_unchecked(&mut self, data: &[u8], raw_tag: &[u8]) -> Result<Vec<u8>, CryptoErrno> {
+    fn decrypt_unchecked(&mut self, data: &[u8], raw_tag: &[u8]) -> CryptoResult<Vec<u8>> {
         self.decrypt_detached_unchecked(data, raw_tag)
     }
 
-    fn decrypt_detached_unchecked(
-        &mut self,
-        data: &[u8],
-        raw_tag: &[u8],
-    ) -> Result<Vec<u8>, CryptoErrno> {
+    fn decrypt_detached_unchecked(&mut self, data: &[u8], raw_tag: &[u8]) -> CryptoResult<Vec<u8>> {
         let mut out = vec![0u8; data.len()];
         let msg_len = data.len();
         let mut raw_tag_ = [0u8; XOODYAK_AUTH_TAG_BYTES];
-        if raw_tag.len() != raw_tag_.len()  {
-            return Err(CryptoErrno::InvalidTag);
+        if raw_tag.len() != raw_tag_.len() {
+            return Err(CryptoErrno::InvalidTag.into());
         };
         raw_tag_.copy_from_slice(raw_tag);
         match self
@@ -243,19 +237,19 @@ impl SymmetricStateLike for XoodyakSymmetricState {
         {
             Err(XoodyakError::KeyRequired) => {
                 out.zeroize();
-                Err(CryptoErrno::InvalidOperation)
+                Err(CryptoErrno::InvalidOperation.into())
             }
             Err(_) => {
                 out.zeroize();
-                Err(CryptoErrno::InvalidTag)
+                Err(CryptoErrno::InvalidTag.into())
             }
             Ok(()) => Ok(out),
         }
     }
 
-    fn ratchet(&mut self) -> Result<(), CryptoErrno> {
+    fn ratchet(&mut self) -> CryptoResult<()> {
         self.xoodyak_state
             .ratchet()
-            .map_err(|_| CryptoErrno::InvalidOperation)
+            .map_err(|_| CryptoErrno::InvalidOperation.into())
     }
 }

@@ -1,5 +1,5 @@
 use crate::{
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno, error::CryptoResult,
     symmetric::SymmetricAlgorithm,
 };
 use subtle::ConstantTimeEq;
@@ -28,9 +28,9 @@ impl SymmetricTag {
         SymmetricTag { alg, raw }
     }
 
-    pub fn verify(&self, expected_raw: &[u8]) -> Result<(), CryptoErrno> {
+    pub fn verify(&self, expected_raw: &[u8]) -> CryptoResult<()> {
         if self.raw.ct_eq(expected_raw).unwrap_u8() != 1 {
-            return Err(CryptoErrno::InvalidTag);
+            return Err(CryptoErrno::InvalidTag.into());
         }
         Ok(())
     }

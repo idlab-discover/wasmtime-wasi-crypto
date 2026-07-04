@@ -2,6 +2,7 @@ use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
     ArrayOutput, CryptoErrno, SecretsManager, Timestamp, Version,
 };
 use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_external_secrets::{Host, SecretId};
+use crate::error::CryptoResult;
 
 impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     #[doc = "/ Store an external secret into the secrets manager."]
@@ -17,8 +18,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         secret: wasmtime::component::__internal::Vec<u8>,
         expiration: Timestamp,
-    ) -> Result<SecretId, CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<SecretId> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 
     #[doc = "/ Replace a managed external secret with a new version."]
@@ -34,8 +35,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         secret: wasmtime::component::__internal::Vec<u8>,
         expiration: Timestamp,
-    ) -> Result<(SecretId, Version), CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<(SecretId, Version)> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 
     #[doc = "/ Get a copy of an external secret given an identifier and version."]
@@ -50,8 +51,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         secret_id: SecretId,
         secret_version: Version,
-    ) -> Result<wasmtime::component::Resource<ArrayOutput>, CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<wasmtime::component::Resource<ArrayOutput>> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 
     #[doc = "/ Invalidate an external secret given an identifier and a version."]
@@ -66,8 +67,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         secret_id: SecretId,
         secret_version: Version,
-    ) -> Result<(), CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<()> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 
     #[doc = "/ Encrypt an external secret."]
@@ -82,8 +83,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         secret: wasmtime::component::__internal::Vec<u8>,
         expiration: Timestamp,
-    ) -> Result<wasmtime::component::Resource<ArrayOutput>, CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<wasmtime::component::Resource<ArrayOutput>> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 
     #[doc = "/ Decrypt an external secret previously encrypted by the secrets manager."]
@@ -95,7 +96,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         encrypted_secret: wasmtime::component::__internal::Vec<u8>,
-    ) -> Result<wasmtime::component::Resource<ArrayOutput>, CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<wasmtime::component::Resource<ArrayOutput>> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 }

@@ -6,6 +6,7 @@ use crate::{
         wasi_ephemeral_crypto_common::CryptoErrno,
         wasi_ephemeral_crypto_symmetric::{SymmetricKey, SymmetricTag},
     },
+    error::CryptoResult,
     options::OptionsLike,
     rand::SecureRandom,
     symmetric::{
@@ -62,13 +63,13 @@ impl SymmetricKeyLike for HmacSha2SymmetricKey {
         self
     }
 
-    fn as_raw(&self) -> Result<&[u8], CryptoErrno> {
+    fn as_raw(&self) -> CryptoResult<&[u8]> {
         Ok(&self.raw)
     }
 }
 
 impl HmacSha2SymmetricKey {
-    pub fn new(alg: SymmetricAlgorithm, raw: &[u8]) -> Result<Self, CryptoErrno> {
+    pub fn new(alg: SymmetricAlgorithm, raw: &[u8]) -> CryptoResult<Self> {
         Ok(HmacSha2SymmetricKey {
             alg,
             raw: raw.to_vec(),
@@ -87,23 +88,23 @@ impl HmacSha2SymmetricKeyBuilder {
 }
 
 impl SymmetricKeyBuilder for HmacSha2SymmetricKeyBuilder {
-    fn generate(&self, _options: Option<SymmetricOptions>) -> Result<SymmetricKey, CryptoErrno> {
+    fn generate(&self, _options: Option<SymmetricOptions>) -> CryptoResult<SymmetricKey> {
         let mut rng = SecureRandom::new();
         let mut raw = vec![0u8; self.key_len()?];
         rng.fill(&mut raw)?;
         self.import(&raw)
     }
 
-    fn import(&self, raw: &[u8]) -> Result<SymmetricKey, CryptoErrno> {
+    fn import(&self, raw: &[u8]) -> CryptoResult<SymmetricKey> {
         let key = HmacSha2SymmetricKey::new(self.alg, raw)?;
         Ok(SymmetricKey::new(Box::new(key)))
     }
 
-    fn key_len(&self) -> Result<usize, CryptoErrno> {
+    fn key_len(&self) -> CryptoResult<usize> {
         match self.alg {
             SymmetricAlgorithm::HmacSha256 => Ok(32),
             SymmetricAlgorithm::HmacSha512 => Ok(64),
-            _ => Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => Err(CryptoErrno::UnsupportedAlgorithm.into()),
         }
     }
 }
@@ -114,7 +115,7 @@ impl HmacSha2SymmetricState {
         key: Option<SymmetricKey>,
         options: Option<SymmetricOptions>,
         size_limit: Option<usize>,
-    ) -> Result<Self, CryptoErrno> {
+    ) -> CryptoResult<Self> {
         let key = key.ok_or(CryptoErrno::KeyRequired)?;
         let key = key.inner();
         let key = key
@@ -130,7 +131,7 @@ impl HmacSha2SymmetricState {
                 Hmac::<Sha512>::new_from_slice(key.as_raw()?)
                     .map_err(|_| CryptoErrno::InvalidKey)?,
             ),
-            _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
         };
         Ok(HmacSha2SymmetricState {
             alg,
@@ -146,14 +147,14 @@ impl SymmetricStateLike for HmacSha2SymmetricState {
         self.alg
     }
 
-    fn options_get(&self, name: &str) -> Result<Vec<u8>, CryptoErrno> {
+    fn options_get(&self, name: &str) -> CryptoResult<Vec<u8>> {
         self.options
             .as_ref()
             .ok_or(CryptoErrno::OptionNotSet)?
             .get(name)
     }
 
-    fn options_get_u64(&self, name: &str) -> Result<u64, CryptoErrno> {
+    fn options_get_u64(&self, name: &str) -> CryptoResult<u64> {
         self.options
             .as_ref()
             .ok_or(CryptoErrno::OptionNotSet)?
@@ -164,7 +165,7 @@ impl SymmetricStateLike for HmacSha2SymmetricState {
         self.size_limit
     }
 
-    fn absorb_unchecked(&mut self, data: &[u8]) -> Result<(), CryptoErrno> {
+    fn absorb_unchecked(&mut self, data: &[u8]) -> CryptoResult<()> {
         match &mut self.ctx {
             HmacVariant::Sha256(x) => x.update(data),
             HmacVariant::Sha512(x) => x.update(data),
@@ -172,7 +173,7 @@ impl SymmetricStateLike for HmacSha2SymmetricState {
         Ok(())
     }
 
-    fn squeeze_tag(&mut self) -> Result<SymmetricTag, CryptoErrno> {
+    fn squeeze_tag(&mut self) -> CryptoResult<SymmetricTag> {
         let raw = match &self.ctx {
             HmacVariant::Sha256(x) => x.clone().finalize().into_bytes().to_vec(),
             HmacVariant::Sha512(x) => x.clone().finalize().into_bytes().to_vec(),

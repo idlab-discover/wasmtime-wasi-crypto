@@ -3,6 +3,7 @@ use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
     AlgorithmType, ArrayOutput, CryptoErrno, Keypair, KeypairEncoding, Options, Publickey,
     PublickeyEncoding, Secretkey, SecretkeyEncoding, SecretsManager, Version,
 };
+use crate::error::CryptoResult;
 use crate::keypair::KeyPair;
 
 impl Host for crate::crypto::WasiCryptoCtxView<'_> {
@@ -29,7 +30,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         algorithm_type: AlgorithmType,
         algorithm: wasmtime::component::__internal::String,
         options: Option<wasmtime::component::Resource<Options>>,
-    ) -> Result<wasmtime::component::Resource<Keypair>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<Keypair>> {
         let options = match options {
             None => None,
             Some(options_handle) => Some(self.table.get(&options_handle)?),
@@ -58,7 +59,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         algorithm: wasmtime::component::__internal::String,
         encoded: wasmtime::component::__internal::Vec<u8>,
         encoding: KeypairEncoding,
-    ) -> Result<wasmtime::component::Resource<Keypair>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<Keypair>> {
         let kp = KeyPair::import(algorithm_type, &algorithm, &encoded, encoding)?;
         let handle = self.table.push(kp)?;
         Ok(handle)
@@ -83,8 +84,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         algorithm_type: AlgorithmType,
         algorithm: wasmtime::component::__internal::String,
         options: Option<wasmtime::component::Resource<Options>>,
-    ) -> Result<wasmtime::component::Resource<Keypair>, CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<wasmtime::component::Resource<Keypair>> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 
     #[doc = "/ __(optional)__"]
@@ -95,8 +96,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         kp: wasmtime::component::Resource<Keypair>,
-    ) -> Result<KpId, CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<KpId> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 
     #[doc = "/ __(optional)__"]
@@ -125,8 +126,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         kp_old: wasmtime::component::Resource<Keypair>,
         kp_new: wasmtime::component::Resource<Keypair>,
-    ) -> Result<Version, CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<Version> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 
     #[doc = "/ __(optional)__"]
@@ -138,8 +139,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn keypair_id(
         &mut self,
         kp: wasmtime::component::Resource<Keypair>,
-    ) -> Result<(KpId, Version), CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<(KpId, Version)> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 
     #[doc = "/ __(optional)__"]
@@ -155,8 +156,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         kp_id: KpId,
         kp_version: Version,
-    ) -> Result<wasmtime::component::Resource<Keypair>, CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<wasmtime::component::Resource<Keypair>> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 
     #[doc = "/ Create a key pair from a public key and a secret key."]
@@ -164,7 +165,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         publickey: wasmtime::component::Resource<Publickey>,
         secretkey: wasmtime::component::Resource<Secretkey>,
-    ) -> Result<wasmtime::component::Resource<Keypair>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<Keypair>> {
         let pk = self.table.get(&publickey)?.clone();
         let sk = self.table.get(&secretkey)?.clone();
         let kp = KeyPair::from_pk_and_sk(pk, sk)?;
@@ -179,7 +180,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         kp: wasmtime::component::Resource<Keypair>,
         encoding: KeypairEncoding,
-    ) -> Result<wasmtime::component::Resource<ArrayOutput>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<ArrayOutput>> {
         let kp = self.table.get(&kp)?;
         let encoded = kp.export(encoding)?;
         let array_output_handle = ArrayOutput::register(self.table, encoded)?;
@@ -190,7 +191,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn keypair_publickey(
         &mut self,
         kp: wasmtime::component::Resource<Keypair>,
-    ) -> Result<wasmtime::component::Resource<Publickey>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<Publickey>> {
         let kp = self.table.get(&kp)?;
         let pk = kp.public_key()?;
         let handle = self.table.push(pk)?;
@@ -201,7 +202,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn keypair_secretkey(
         &mut self,
         kp: wasmtime::component::Resource<Keypair>,
-    ) -> Result<wasmtime::component::Resource<Secretkey>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<Secretkey>> {
         let kp = self.table.get(&kp)?;
         let sk = kp.secret_key()?;
         let handle = self.table.push(sk)?;
@@ -213,10 +214,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     #[doc = "/ The host will automatically wipe traces of the secret key from memory."]
     #[doc = "/ "]
     #[doc = "/ If this is a managed key, the key will not be removed from persistent storage, and can be reconstructed later using the key identifier."]
-    fn keypair_close(
-        &mut self,
-        kp: wasmtime::component::Resource<Keypair>,
-    ) -> Result<(), CryptoErrno> {
+    fn keypair_close(&mut self, kp: wasmtime::component::Resource<Keypair>) -> CryptoResult<()> {
         debug_assert!(kp.owned());
         let _kp: Keypair = self.table.delete(kp)?;
         Ok(())
@@ -241,7 +239,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         algorithm: wasmtime::component::__internal::String,
         encoded: wasmtime::component::__internal::Vec<u8>,
         encoding: PublickeyEncoding,
-    ) -> Result<wasmtime::component::Resource<Publickey>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<Publickey>> {
         let pk = Publickey::import(algorithm_type, &algorithm, &encoded, encoding)?;
         let handle = self.table.push(pk)?;
         Ok(handle)
@@ -254,7 +252,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         pk: wasmtime::component::Resource<Publickey>,
         encoding: PublickeyEncoding,
-    ) -> Result<wasmtime::component::Resource<ArrayOutput>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<ArrayOutput>> {
         let pk = self.table.get(&pk)?;
         let encoded = pk.export(encoding)?;
         let array_output_handle = ArrayOutput::register(self.table, encoded)?;
@@ -269,17 +267,18 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn publickey_verify(
         &mut self,
         pk: wasmtime::component::Resource<Publickey>,
-    ) -> Result<(), CryptoErrno> {
-        Publickey::verify(self.table, pk)
+    ) -> CryptoResult<()> {
+        Publickey::verify(self.table, pk)?;
+        Ok(())
     }
 
     #[doc = "/ Compute the public key for a secret key."]
     fn publickey_from_secretkey(
         &mut self,
         sk: wasmtime::component::Resource<Secretkey>,
-    ) -> Result<wasmtime::component::Resource<Publickey>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<Publickey>> {
         // Also not defined in witx version
-        Err(CryptoErrno::UnsupportedFeature)
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 
     #[doc = "/ Destroy a public key."]
@@ -288,7 +287,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn publickey_close(
         &mut self,
         pk: wasmtime::component::Resource<Publickey>,
-    ) -> Result<(), CryptoErrno> {
+    ) -> CryptoResult<()> {
         debug_assert!(pk.owned());
         let _pk: Publickey = self.table.delete(pk)?;
         Ok(())
@@ -313,7 +312,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         algorithm: wasmtime::component::__internal::String,
         encoded: wasmtime::component::__internal::Vec<u8>,
         encoding: SecretkeyEncoding,
-    ) -> Result<wasmtime::component::Resource<Secretkey>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<Secretkey>> {
         let sk = Secretkey::import(algorithm_type, &algorithm, &encoded, encoding)?;
         let handle = self.table.push(sk)?;
         Ok(handle)
@@ -326,7 +325,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         sk: wasmtime::component::Resource<Secretkey>,
         encoding: SecretkeyEncoding,
-    ) -> Result<wasmtime::component::Resource<ArrayOutput>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<ArrayOutput>> {
         let sk = self.table.get(&sk)?;
         let encoded = sk.export(encoding)?;
         let array_output_handle = ArrayOutput::register(self.table, encoded)?;
@@ -339,7 +338,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn secretkey_close(
         &mut self,
         sk: wasmtime::component::Resource<Secretkey>,
-    ) -> Result<(), CryptoErrno> {
+    ) -> CryptoResult<()> {
         debug_assert!(sk.owned());
         let _sk: Secretkey = self.table.delete(sk)?;
         Ok(())

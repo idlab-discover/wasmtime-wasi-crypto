@@ -4,6 +4,7 @@ use crate::{
     bindings::wasi::crypto::{
         wasi_ephemeral_crypto_common::CryptoErrno, wasi_ephemeral_crypto_symmetric::SymmetricKey,
     },
+    error::CryptoResult,
     options::OptionsLike,
     symmetric::{SymmetricAlgorithm, SymmetricOptions, state::SymmetricStateLike},
 };
@@ -33,16 +34,16 @@ impl Sha2SymmetricState {
         key: Option<&SymmetricKey>,
         options: Option<SymmetricOptions>,
         size_limit: Option<usize>,
-    ) -> Result<Self, CryptoErrno> {
+    ) -> CryptoResult<Self> {
         if key.is_some() {
-            return Err(CryptoErrno::KeyNotSupported);
+            return Err(CryptoErrno::KeyNotSupported.into());
         }
         let ctx = match alg {
             SymmetricAlgorithm::Sha256 => HashVariant::Sha256(Sha256::new()),
             SymmetricAlgorithm::Sha384 => HashVariant::Sha384(Sha384::new()),
             SymmetricAlgorithm::Sha512 => HashVariant::Sha512(Sha512::new()),
             SymmetricAlgorithm::Sha512_256 => HashVariant::Sha512_256(Sha512_256::new()),
-            _ => return Err(CryptoErrno::UnsupportedAlgorithm),
+            _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
         };
         Ok(Sha2SymmetricState {
             alg,
@@ -58,14 +59,14 @@ impl SymmetricStateLike for Sha2SymmetricState {
         self.alg
     }
 
-    fn options_get(&self, name: &str) -> Result<Vec<u8>, CryptoErrno> {
+    fn options_get(&self, name: &str) -> CryptoResult<Vec<u8>> {
         self.options
             .as_ref()
             .ok_or(CryptoErrno::OptionNotSet)?
             .get(name)
     }
 
-    fn options_get_u64(&self, name: &str) -> Result<u64, CryptoErrno> {
+    fn options_get_u64(&self, name: &str) -> CryptoResult<u64> {
         self.options
             .as_ref()
             .ok_or(CryptoErrno::OptionNotSet)?
@@ -76,7 +77,7 @@ impl SymmetricStateLike for Sha2SymmetricState {
         self.size_limit
     }
 
-    fn absorb_unchecked(&mut self, data: &[u8]) -> Result<(), CryptoErrno> {
+    fn absorb_unchecked(&mut self, data: &[u8]) -> CryptoResult<()> {
         match &mut self.ctx {
             HashVariant::Sha256(x) => x.update(data),
             HashVariant::Sha384(x) => x.update(data),
@@ -86,7 +87,7 @@ impl SymmetricStateLike for Sha2SymmetricState {
         Ok(())
     }
 
-    fn squeeze_unchecked(&mut self) -> Result<Vec<u8>, CryptoErrno> {
+    fn squeeze_unchecked(&mut self) -> CryptoResult<Vec<u8>> {
         let raw = match &self.ctx {
             HashVariant::Sha256(x) => x.clone().finalize().to_vec(),
             HashVariant::Sha384(x) => x.clone().finalize().to_vec(),

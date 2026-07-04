@@ -1,4 +1,6 @@
-use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno;
+use crate::{
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno, error::CryptoResult,
+};
 use std::io::{Cursor, Read};
 use wasmtime_wasi::ResourceTable;
 use zeroize::Zeroize;
@@ -11,12 +13,12 @@ impl ArrayOutput {
         self.0.get_ref().len()
     }
 
-    pub(crate) fn pull(&self, buf: &mut [u8]) -> Result<usize, CryptoErrno> {
+    pub(crate) fn pull(&self, buf: &mut [u8]) -> CryptoResult<usize> {
         let data = self.0.get_ref();
         let data_len = data.len();
         let buf_len = buf.len();
         if buf_len < data_len {
-            return Err(CryptoErrno::Overflow);
+            return Err(CryptoErrno::Overflow.into());
         }
         buf[..data_len].copy_from_slice(data);
         Ok(data_len)
@@ -29,7 +31,7 @@ impl ArrayOutput {
     pub(crate) fn register(
         table: &mut ResourceTable,
         data: Vec<u8>,
-    ) -> Result<wasmtime::component::Resource<ArrayOutput>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<ArrayOutput>> {
         let array_output = ArrayOutput::new(data);
 
         let handle = table

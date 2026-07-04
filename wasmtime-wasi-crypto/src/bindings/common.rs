@@ -1,29 +1,26 @@
-use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_asymmetric_common::Host as AsymmetricCommonHost;
-use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_signatures::Host as SignaturesHost;
-use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_symmetric::Host as SymmetricHost;
 use crate::{
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::*, key_exchange::KxOptions,
-    signatures::SignatureOptions, symmetric::SymmetricOptions,
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::*,
+    error::{CryptoError, CryptoResult},
+    key_exchange::KxOptions,
+    signatures::SignatureOptions,
+    symmetric::SymmetricOptions,
 };
 
 impl HostSymmetricTag for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<SymmetricTag>) -> wasmtime::Result<()> {
-        SymmetricHost::symmetric_tag_close(self, rep)
-            .map_err(|_| wasmtime::Error::msg("Failed to close symmetric tag"))?;
+        self.table.delete(rep)?;
         Ok(())
     }
 }
 impl HostSymmetricKey for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<SymmetricKey>) -> wasmtime::Result<()> {
-        SymmetricHost::symmetric_key_close(self, rep)
-            .map_err(|_| wasmtime::Error::msg("Failed to close symmetric key"))?;
+        self.table.delete(rep)?;
         Ok(())
     }
 }
 impl HostSymmetricState for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<SymmetricState>) -> wasmtime::Result<()> {
-        SymmetricHost::symmetric_state_close(self, rep)
-            .map_err(|_| wasmtime::Error::msg("Failed to close symmetric state"))?;
+        self.table.delete(rep)?;
         Ok(())
     }
 }
@@ -32,50 +29,43 @@ impl HostSignatureVerificationState for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         rep: wasmtime::component::Resource<SignatureVerificationState>,
     ) -> wasmtime::Result<()> {
-        SignaturesHost::signature_verification_state_close(self, rep)
-            .map_err(|_| wasmtime::Error::msg("Failed to close signature verification state"))?;
+        self.table.delete(rep)?;
         Ok(())
     }
 }
 impl HostSecretkey for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<Secretkey>) -> wasmtime::Result<()> {
-        AsymmetricCommonHost::secretkey_close(self, rep)
-            .map_err(|_| wasmtime::Error::msg("Failed to close secret key"))?;
+        self.table.delete(rep)?;
         Ok(())
     }
 }
 impl HostPublickey for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<Publickey>) -> wasmtime::Result<()> {
-        AsymmetricCommonHost::publickey_close(self, rep)
-            .map_err(|_| wasmtime::Error::msg("Failed to close public key"))?;
+        self.table.delete(rep)?;
         Ok(())
     }
 }
 impl HostSignature for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<Signature>) -> wasmtime::Result<()> {
-        SignaturesHost::signature_close(self, rep)
-            .map_err(|_| wasmtime::Error::msg("Failed to close signature"))?;
+        self.table.delete(rep)?;
         Ok(())
     }
 }
 impl HostSignatureState for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<SignatureState>) -> wasmtime::Result<()> {
-        SignaturesHost::signature_state_close(self, rep)
-            .map_err(|_| wasmtime::Error::msg("Failed to close signature state"))?;
+        self.table.delete(rep)?;
         Ok(())
     }
 }
 impl HostKeypair for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<Keypair>) -> wasmtime::Result<()> {
-        AsymmetricCommonHost::keypair_close(self, rep)
-            .map_err(|_| wasmtime::Error::msg("Failed to close keypair"))?;
+        self.table.delete(rep)?;
         Ok(())
     }
 }
 impl HostSecretsManager for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<SecretsManager>) -> wasmtime::Result<()> {
-        self.secrets_manager_close(rep)
-            .map_err(|_| wasmtime::Error::msg("Failed to close secrets manager"))?;
+        self.table.delete(rep)?;
         Ok(())
     }
 }
@@ -86,7 +76,6 @@ impl HostOptions for crate::crypto::WasiCryptoCtxView<'_> {
 }
 impl HostArrayOutput for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<ArrayOutput>) -> wasmtime::Result<()> {
-        debug_assert!(rep.owned());
         // The ArrayOutput's Drop impl will zeroize the underlying data for security.
         let _: crate::array_output::ArrayOutput = self.table.delete(rep)?;
         Ok(())
@@ -94,6 +83,10 @@ impl HostArrayOutput for crate::crypto::WasiCryptoCtxView<'_> {
 }
 
 impl Host for crate::crypto::WasiCryptoCtxView<'_> {
+    fn convert_crypto_errno(&mut self, err: CryptoError) -> wasmtime::Result<CryptoErrno> {
+        err.downcast()
+    }
+
     #[doc = "/ Create a new object to set non-default options."]
     #[doc = "/ "]
     #[doc = "/ Example usage:"]
@@ -108,7 +101,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn options_open(
         &mut self,
         algorithm_type: AlgorithmType,
-    ) -> Result<wasmtime::component::Resource<Options>, CryptoErrno> {
+    ) -> CryptoResult<wasmtime::component::Resource<Options>> {
         let options = match algorithm_type {
             AlgorithmType::Signatures => Options::Signatures(SignatureOptions::default()),
             AlgorithmType::Symmetric => Options::Symmetric(SymmetricOptions::default()),
@@ -124,8 +117,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn options_close(
         &mut self,
         options: wasmtime::component::Resource<Options>,
-    ) -> Result<(), CryptoErrno> {
-        debug_assert!(options.owned());
+    ) -> CryptoResult<()> {
         let _options: Options = self.table.delete(options)?;
         Ok(())
     }
@@ -140,9 +132,10 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         options: wasmtime::component::Resource<Options>,
         name: wasmtime::component::__internal::String,
         value: wasmtime::component::__internal::Vec<u8>,
-    ) -> Result<(), CryptoErrno> {
+    ) -> CryptoResult<()> {
         let options = self.table.get_mut(&options)?;
-        options.set(&name, &value)
+        options.set(&name, &value)?;
+        Ok(())
     }
 
     #[doc = "/ Set or update an integer option."]
@@ -155,9 +148,10 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         options: wasmtime::component::Resource<Options>,
         name: wasmtime::component::__internal::String,
         value: u64,
-    ) -> Result<(), CryptoErrno> {
+    ) -> CryptoResult<()> {
         let options = self.table.get_mut(&options)?;
-        options.set_u64(&name, value)
+        options.set_u64(&name, value)?;
+        Ok(())
     }
 
     #[doc = "/ Set or update buffer that the host can use or return data into."]
@@ -173,7 +167,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         options: wasmtime::component::Resource<Options>,
         name: wasmtime::component::__internal::String,
         buffer: wasmtime::component::__internal::Vec<u8>,
-    ) -> Result<(), CryptoErrno> {
+    ) -> CryptoResult<()> {
         self.options_set(options, name, buffer)
     }
 
@@ -183,7 +177,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn array_output_len(
         &mut self,
         array_output: wasmtime::component::Resource<ArrayOutput>,
-    ) -> Result<Size, CryptoErrno> {
+    ) -> CryptoResult<Size> {
         let array_output = self.table.get(&array_output)?;
         Ok(array_output.len() as u32)
     }
@@ -205,8 +199,9 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn array_output_pull(
         &mut self,
         array_output: wasmtime::component::Resource<ArrayOutput>,
-    ) -> Result<wasmtime::component::__internal::Vec<u8>, CryptoErrno> {
-        let array_output_value: crate::array_output::ArrayOutput = self.table.delete(array_output)?;
+    ) -> CryptoResult<wasmtime::component::__internal::Vec<u8>> {
+        let array_output_value: crate::array_output::ArrayOutput =
+            self.table.delete(array_output)?;
         let len = array_output_value.len();
         let mut output = vec![0u8; len];
         array_output_value.pull(&mut output)?;
@@ -223,8 +218,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn secrets_manager_open(
         &mut self,
         options: Option<wasmtime::component::Resource<Options>>,
-    ) -> Result<wasmtime::component::Resource<SecretsManager>, CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<wasmtime::component::Resource<SecretsManager>> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 
     #[doc = "/ __(optional)__"]
@@ -235,8 +230,8 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn secrets_manager_close(
         &mut self,
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
-    ) -> Result<(), CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<()> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 
     #[doc = "/ __(optional)__"]
@@ -254,7 +249,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         key_id: KeyId,
         key_version: Version,
-    ) -> Result<(), CryptoErrno> {
-        Err(CryptoErrno::UnsupportedFeature)
+    ) -> CryptoResult<()> {
+        Err(CryptoErrno::UnsupportedFeature.into())
     }
 }

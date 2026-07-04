@@ -1,4 +1,6 @@
-use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno;
+use crate::{
+    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno, error::CryptoResult,
+};
 use rand_core::{self, CryptoRng, OsRng, RngCore};
 
 pub struct SecureRandom;
@@ -8,10 +10,10 @@ impl SecureRandom {
         SecureRandom
     }
 
-    pub fn fill(&mut self, bytes: &mut [u8]) -> Result<(), CryptoErrno> {
+    pub fn fill(&mut self, bytes: &mut [u8]) -> CryptoResult<()> {
         OsRng
             .try_fill_bytes(bytes)
-            .map_err(|_| CryptoErrno::RngError)
+            .map_err(|_| CryptoErrno::RngError.into())
     }
 }
 

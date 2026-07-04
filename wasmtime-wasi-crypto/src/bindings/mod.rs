@@ -8,6 +8,9 @@ wasmtime::component::bindgen!(
     {
     world: "imports",
     path: "../spec/wit",
+    // Interactions with `ResourceTable` can possibly trap so enable the ability
+    // to return traps from generated functions.
+    imports: { default: trappable },
     with : {
             "wasi:crypto/wasi-ephemeral-crypto-common.array-output": crate::array_output::ArrayOutput,
             "wasi:crypto/wasi-ephemeral-crypto-common.options": crate::options::Options,
@@ -21,6 +24,9 @@ wasmtime::component::bindgen!(
             "wasi:crypto/wasi-ephemeral-crypto-common.symmetric-state": crate::symmetric::SymmetricState,
             "wasi:crypto/wasi-ephemeral-crypto-common.symmetric-key": crate::symmetric::SymmetricKey,
             "wasi:crypto/wasi-ephemeral-crypto-common.symmetric-tag": crate::symmetric::SymmetricTag,
+        },
+        trappable_error_type: {
+            "wasi:crypto/wasi-ephemeral-crypto-common.crypto-errno" => crate::error::CryptoError,
         }
     }
 );

@@ -1,5 +1,6 @@
 use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
+    error::CryptoResult,
     symmetric::{
         SymmetricAlgorithm, SymmetricOptions, aes_gcm::AesGcmSymmetricKeyBuilder,
         chacha_poly::ChaChaPolySymmetricKeyBuilder, hkdf::HkdfSymmetricKeyBuilder,
@@ -17,11 +18,11 @@ pub struct SymmetricKey {
 }
 
 pub trait SymmetricKeyBuilder {
-    fn generate(&self, options: Option<SymmetricOptions>) -> Result<SymmetricKey, CryptoErrno>;
+    fn generate(&self, options: Option<SymmetricOptions>) -> CryptoResult<SymmetricKey>;
 
-    fn import(&self, raw: &[u8]) -> Result<SymmetricKey, CryptoErrno>;
+    fn import(&self, raw: &[u8]) -> CryptoResult<SymmetricKey>;
 
-    fn key_len(&self) -> Result<usize, CryptoErrno>;
+    fn key_len(&self) -> CryptoResult<usize>;
 }
 
 impl SymmetricKey {
@@ -46,7 +47,7 @@ impl SymmetricKey {
         self.inner().alg()
     }
 
-    pub fn builder(alg_str: &str) -> Result<Box<dyn SymmetricKeyBuilder>, CryptoErrno> {
+    pub fn builder(alg_str: &str) -> CryptoResult<Box<dyn SymmetricKeyBuilder>> {
         let alg = SymmetricAlgorithm::try_from(alg_str)?;
         let builder = match alg {
             SymmetricAlgorithm::HmacSha256 | SymmetricAlgorithm::HmacSha512 => {
@@ -65,7 +66,7 @@ impl SymmetricKey {
             SymmetricAlgorithm::ChaCha20Poly1305 | SymmetricAlgorithm::XChaCha20Poly1305 => {
                 ChaChaPolySymmetricKeyBuilder::new(alg)
             }
-            _ => return Err(CryptoErrno::InvalidOperation),
+            _ => return Err(CryptoErrno::InvalidOperation.into()),
         };
         Ok(builder)
     }
@@ -73,12 +74,12 @@ impl SymmetricKey {
     pub fn generate(
         alg_str: &str,
         options: Option<SymmetricOptions>,
-    ) -> Result<SymmetricKey, CryptoErrno> {
+    ) -> CryptoResult<SymmetricKey> {
         let builder = Self::builder(alg_str)?;
         builder.generate(options)
     }
 
-    pub fn import(alg_str: &str, raw: &[u8]) -> Result<SymmetricKey, CryptoErrno> {
+    pub fn import(alg_str: &str, raw: &[u8]) -> CryptoResult<SymmetricKey> {
         let builder = Self::builder(alg_str)?;
         builder.import(raw)
     }
@@ -87,5 +88,5 @@ impl SymmetricKey {
 pub trait SymmetricKeyLike: Sync + Send {
     fn as_any(&self) -> &dyn Any;
     fn alg(&self) -> SymmetricAlgorithm;
-    fn as_raw(&self) -> Result<&[u8], CryptoErrno>;
+    fn as_raw(&self) -> CryptoResult<&[u8]>;
 }

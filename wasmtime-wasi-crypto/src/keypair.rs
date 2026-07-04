@@ -3,6 +3,7 @@ use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
         AlgorithmType, CryptoErrno, KeypairEncoding,
     },
+    error::CryptoResult,
     key_exchange::{KxAlgorithm, keypair::KxKeyPair},
     options::Options,
     signatures::{SignatureAlgorithm, keypair::SignatureKeyPair},
@@ -15,21 +16,21 @@ pub enum KeyPair {
 }
 
 impl KeyPair {
-    pub(crate) fn into_signature_keypair(self) -> Result<SignatureKeyPair, CryptoErrno> {
+    pub(crate) fn into_signature_keypair(self) -> CryptoResult<SignatureKeyPair> {
         match self {
             KeyPair::Signature(kp) => Ok(kp),
-            _ => Err(CryptoErrno::InvalidHandle),
+            _ => Err(CryptoErrno::InvalidHandle.into()),
         }
     }
 
-    pub(crate) fn into_kx_keypair(self) -> Result<KxKeyPair, CryptoErrno> {
+    pub(crate) fn into_kx_keypair(self) -> CryptoResult<KxKeyPair> {
         match self {
             KeyPair::KeyExchange(kp) => Ok(kp),
-            _ => Err(CryptoErrno::InvalidHandle),
+            _ => Err(CryptoErrno::InvalidHandle.into()),
         }
     }
 
-    pub fn export(&self, encoding: KeypairEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub fn export(&self, encoding: KeypairEncoding) -> CryptoResult<Vec<u8>> {
         match self {
             KeyPair::Signature(key_pair) => key_pair.export(encoding),
             KeyPair::KeyExchange(key_pair) => key_pair.export(encoding),
@@ -40,7 +41,7 @@ impl KeyPair {
         alg_type: AlgorithmType,
         alg_str: &str,
         options: Option<Options>,
-    ) -> Result<KeyPair, CryptoErrno> {
+    ) -> CryptoResult<KeyPair> {
         match alg_type {
             AlgorithmType::Signatures => {
                 let options = match options {
@@ -62,7 +63,7 @@ impl KeyPair {
                     options,
                 )?))
             }
-            _ => Err(CryptoErrno::InvalidOperation),
+            _ => Err(CryptoErrno::InvalidOperation.into()),
         }
     }
 
@@ -71,42 +72,42 @@ impl KeyPair {
         alg_str: &str,
         encoded: &[u8],
         encoding: KeypairEncoding,
-    ) -> Result<KeyPair, CryptoErrno> {
+    ) -> CryptoResult<KeyPair> {
         match alg_type {
             AlgorithmType::Signatures => Ok(KeyPair::Signature(SignatureKeyPair::import(
                 SignatureAlgorithm::try_from(alg_str)?,
                 encoded,
                 encoding,
             )?)),
-            _ => Err(CryptoErrno::InvalidOperation),
+            _ => Err(CryptoErrno::InvalidOperation.into()),
         }
     }
 
-    pub fn from_pk_and_sk(_pk: PublicKey, _sk: SecretKey) -> Result<KeyPair, CryptoErrno> {
+    pub fn from_pk_and_sk(_pk: PublicKey, _sk: SecretKey) -> CryptoResult<KeyPair> {
         match (_pk, _sk) {
             (PublicKey::Signature(pk), SecretKey::Signature(sk)) => {
                 if !(pk.alg() == sk.alg()) {
-                    return Err(CryptoErrno::IncompatibleKeys);
+                    return Err(CryptoErrno::IncompatibleKeys.into());
                 };
             }
             (PublicKey::KeyExchange(pk), SecretKey::KeyExchange(sk)) => {
                 if !(pk.alg() == sk.alg()) {
-                    return Err(CryptoErrno::IncompatibleKeys);
+                    return Err(CryptoErrno::IncompatibleKeys.into());
                 };
             }
-            _ => return Err(CryptoErrno::IncompatibleKeys),
+            _ => return Err(CryptoErrno::IncompatibleKeys.into()),
         }
-        Err(CryptoErrno::NotImplemented)
+        Err(CryptoErrno::NotImplemented.into())
     }
 
-    pub fn public_key(&self) -> Result<PublicKey, CryptoErrno> {
+    pub fn public_key(&self) -> CryptoResult<PublicKey> {
         match self {
             KeyPair::Signature(key_pair) => Ok(PublicKey::Signature(key_pair.public_key()?)),
             KeyPair::KeyExchange(key_pair) => Ok(PublicKey::KeyExchange(key_pair.public_key()?)),
         }
     }
 
-    pub fn secret_key(&self) -> Result<SecretKey, CryptoErrno> {
+    pub fn secret_key(&self) -> CryptoResult<SecretKey> {
         match self {
             KeyPair::Signature(key_pair) => Ok(SecretKey::Signature(key_pair.secret_key()?)),
             KeyPair::KeyExchange(key_pair) => Ok(SecretKey::KeyExchange(key_pair.secret_key()?)),

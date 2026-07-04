@@ -1,5 +1,6 @@
 use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::{CryptoErrno, PublickeyEncoding},
+    error::CryptoResult,
     key_exchange::{KxAlgorithm, kem::EncapsulatedSecret},
 };
 use std::{
@@ -8,7 +9,7 @@ use std::{
 };
 
 pub trait KxPublicKeyBuilder {
-    fn from_raw(&self, raw: &[u8]) -> Result<KxPublicKey, CryptoErrno>;
+    fn from_raw(&self, raw: &[u8]) -> CryptoResult<KxPublicKey>;
 }
 
 #[derive(Clone)]
@@ -38,22 +39,22 @@ impl KxPublicKey {
         self.inner().alg()
     }
 
-    pub(crate) fn as_raw(&self) -> Result<Vec<u8>, CryptoErrno> {
+    pub(crate) fn as_raw(&self) -> CryptoResult<Vec<u8>> {
         Ok(self.inner().as_raw()?.to_vec())
     }
 
-    pub(crate) fn export(&self, encoding: PublickeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub(crate) fn export(&self, encoding: PublickeyEncoding) -> CryptoResult<Vec<u8>> {
         match encoding {
             PublickeyEncoding::Raw => Ok(self.inner().as_raw()?.to_vec()),
-            _ => Err(CryptoErrno::UnsupportedEncoding),
+            _ => Err(CryptoErrno::UnsupportedEncoding.into()),
         }
     }
 
-    pub(crate) fn verify(&self) -> Result<(), CryptoErrno> {
+    pub(crate) fn verify(&self) -> CryptoResult<()> {
         self.inner().verify()
     }
 
-    pub(crate) fn encapsulate(&self) -> Result<EncapsulatedSecret, CryptoErrno> {
+    pub(crate) fn encapsulate(&self) -> CryptoResult<EncapsulatedSecret> {
         self.inner().encapsulate()
     }
 }
@@ -61,14 +62,14 @@ impl KxPublicKey {
 pub trait KxPublicKeyLike: Sync + Send {
     fn as_any(&self) -> &dyn Any;
     fn alg(&self) -> KxAlgorithm;
-    fn len(&self) -> Result<usize, CryptoErrno>;
-    fn as_raw(&self) -> Result<&[u8], CryptoErrno>;
+    fn len(&self) -> CryptoResult<usize>;
+    fn as_raw(&self) -> CryptoResult<&[u8]>;
 
-    fn verify(&self) -> Result<(), CryptoErrno> {
+    fn verify(&self) -> CryptoResult<()> {
         Ok(())
     }
 
-    fn encapsulate(&self) -> Result<EncapsulatedSecret, CryptoErrno> {
-        Err(CryptoErrno::InvalidOperation)
+    fn encapsulate(&self) -> CryptoResult<EncapsulatedSecret> {
+        Err(CryptoErrno::InvalidOperation.into())
     }
 }

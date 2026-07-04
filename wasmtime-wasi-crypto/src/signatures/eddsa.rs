@@ -2,6 +2,7 @@ use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
         CryptoErrno, KeypairEncoding, PublickeyEncoding,
     },
+    error::CryptoResult,
     signatures::{
         SignatureAlgorithm, SignatureOptions,
         signature::{Signature, SignatureLike, SignatureStateLike, SignatureVerificationStateLike},
@@ -24,9 +25,9 @@ pub struct EddsaSignatureKeyPair {
 }
 
 impl EddsaSignatureKeyPair {
-    fn from_raw(alg: SignatureAlgorithm, raw: &[u8]) -> Result<Self, CryptoErrno> {
+    fn from_raw(alg: SignatureAlgorithm, raw: &[u8]) -> CryptoResult<Self> {
         if raw.len() != KP_LEN {
-            return Err(CryptoErrno::InvalidKey);
+            return Err(CryptoErrno::InvalidKey.into());
         };
         let ctx = ed25519_compact::KeyPair::from_slice(raw).map_err(|_| CryptoErrno::InvalidKey)?;
         Ok(EddsaSignatureKeyPair {
@@ -35,14 +36,14 @@ impl EddsaSignatureKeyPair {
         })
     }
 
-    fn as_raw(&self) -> Result<Vec<u8>, CryptoErrno> {
+    fn as_raw(&self) -> CryptoResult<Vec<u8>> {
         Ok(self.ctx.to_vec())
     }
 
     pub fn generate(
         alg: SignatureAlgorithm,
         _options: Option<SignatureOptions>,
-    ) -> Result<Self, CryptoErrno> {
+    ) -> CryptoResult<Self> {
         let ctx = ed25519_compact::KeyPair::generate();
         Ok(EddsaSignatureKeyPair {
             alg,
@@ -54,25 +55,25 @@ impl EddsaSignatureKeyPair {
         alg: SignatureAlgorithm,
         encoded: &[u8],
         encoding: KeypairEncoding,
-    ) -> Result<Self, CryptoErrno> {
+    ) -> CryptoResult<Self> {
         if !(alg == SignatureAlgorithm::Ed25519) {
-            return Err(CryptoErrno::UnsupportedAlgorithm);
+            return Err(CryptoErrno::UnsupportedAlgorithm.into());
         };
         let kp = match encoding {
             KeypairEncoding::Raw => EddsaSignatureKeyPair::from_raw(alg, encoded)?,
-            _ => return Err(CryptoErrno::UnsupportedEncoding),
+            _ => return Err(CryptoErrno::UnsupportedEncoding.into()),
         };
         Ok(kp)
     }
 
-    pub fn export(&self, encoding: KeypairEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub fn export(&self, encoding: KeypairEncoding) -> CryptoResult<Vec<u8>> {
         match encoding {
             KeypairEncoding::Raw => self.as_raw(),
-            _ => Err(CryptoErrno::UnsupportedEncoding),
+            _ => Err(CryptoErrno::UnsupportedEncoding.into()),
         }
     }
 
-    pub fn public_key(&self) -> Result<EddsaSignaturePublicKey, CryptoErrno> {
+    pub fn public_key(&self) -> CryptoResult<EddsaSignaturePublicKey> {
         let ctx = self.ctx.pk;
         Ok(EddsaSignaturePublicKey { alg: self.alg, ctx })
     }
@@ -88,13 +89,13 @@ impl EddsaSignature {
         EddsaSignature { raw }
     }
 
-    pub fn from_raw(alg: SignatureAlgorithm, raw: &[u8]) -> Result<Self, CryptoErrno> {
+    pub fn from_raw(alg: SignatureAlgorithm, raw: &[u8]) -> CryptoResult<Self> {
         let expected_len = match alg {
             SignatureAlgorithm::Ed25519 => 64,
-            _ => return Err(CryptoErrno::InvalidSignature),
+            _ => return Err(CryptoErrno::InvalidSignature.into()),
         };
         if raw.len() != expected_len {
-            return Err(CryptoErrno::InvalidSignature);
+            return Err(CryptoErrno::InvalidSignature.into());
         };
         Ok(Self::new(raw.to_vec()))
     }
@@ -119,20 +120,24 @@ pub struct EddsaSignatureState {
 impl EddsaSignatureState {
     pub fn new(kp: EddsaSignatureKeyPair) -> Self {
         let st = kp.ctx.sk.sign_incremental(Default::default());
-        EddsaSignatureState { kp, st, signed: false }
+        EddsaSignatureState {
+            kp,
+            st,
+            signed: false,
+        }
     }
 }
 
 impl SignatureStateLike for EddsaSignatureState {
-    fn update(&mut self, input: &[u8]) -> Result<(), CryptoErrno> {
+    fn update(&mut self, input: &[u8]) -> CryptoResult<()> {
         if self.signed {
-            return Err(CryptoErrno::UnsupportedFeature);
+            return Err(CryptoErrno::UnsupportedFeature.into());
         }
         self.st.absorb(input);
         Ok(())
     }
 
-    fn sign(&mut self) -> Result<Signature, CryptoErrno> {
+    fn sign(&mut self) -> CryptoResult<Signature> {
         let signature_u8 = self.st.sign().to_vec();
         self.signed = true;
         let signature = EddsaSignature::new(signature_u8);
@@ -153,12 +158,12 @@ impl EddsaSignatureVerificationState {
 }
 
 impl SignatureVerificationStateLike for EddsaSignatureVerificationState {
-    fn update(&mut self, input: &[u8]) -> Result<(), CryptoErrno> {
+    fn update(&mut self, input: &[u8]) -> CryptoResult<()> {
         self.input.extend_from_slice(input);
         Ok(())
     }
 
-    fn verify(&self, signature: &Signature) -> Result<(), CryptoErrno> {
+    fn verify(&self, signature: &Signature) -> CryptoResult<()> {
         let signature = signature.inner();
         let signature = signature
             .as_any()
@@ -166,7 +171,7 @@ impl SignatureVerificationStateLike for EddsaSignatureVerificationState {
             .ok_or(CryptoErrno::InvalidSignature)?;
         let mut signature_u8 = [0u8; KP_LEN];
         if signature.as_ref().len() != signature_u8.len() {
-            return Err(CryptoErrno::InvalidSignature);
+            return Err(CryptoErrno::InvalidSignature.into());
         };
         signature_u8.copy_from_slice(signature.as_ref());
         self.pk
@@ -187,14 +192,14 @@ pub struct EddsaSignaturePublicKey {
 }
 
 impl EddsaSignaturePublicKey {
-    fn from_raw(alg: SignatureAlgorithm, raw: &[u8]) -> Result<Self, CryptoErrno> {
+    fn from_raw(alg: SignatureAlgorithm, raw: &[u8]) -> CryptoResult<Self> {
         let ctx =
             ed25519_compact::PublicKey::from_slice(raw).map_err(|_| CryptoErrno::InvalidKey)?;
         let pk = EddsaSignaturePublicKey { alg, ctx };
         Ok(pk)
     }
 
-    fn as_raw(&self) -> Result<Vec<u8>, CryptoErrno> {
+    fn as_raw(&self) -> CryptoResult<Vec<u8>> {
         Ok(self.ctx.to_vec())
     }
 
@@ -202,21 +207,21 @@ impl EddsaSignaturePublicKey {
         alg: SignatureAlgorithm,
         encoded: &[u8],
         encoding: PublickeyEncoding,
-    ) -> Result<Self, CryptoErrno> {
+    ) -> CryptoResult<Self> {
         match encoding {
             PublickeyEncoding::Raw => Self::from_raw(alg, encoded),
-            _ => Err(CryptoErrno::UnsupportedEncoding),
+            _ => Err(CryptoErrno::UnsupportedEncoding.into()),
         }
     }
 
-    pub fn export(&self, encoding: PublickeyEncoding) -> Result<Vec<u8>, CryptoErrno> {
+    pub fn export(&self, encoding: PublickeyEncoding) -> CryptoResult<Vec<u8>> {
         match encoding {
             PublickeyEncoding::Raw => self.as_raw(),
-            _ => Err(CryptoErrno::UnsupportedEncoding),
+            _ => Err(CryptoErrno::UnsupportedEncoding.into()),
         }
     }
 
-    pub(crate) fn verify(&self) -> Result<(), CryptoErrno> {
+    pub(crate) fn verify(&self) -> CryptoResult<()> {
         // import (from_slice) only checks the length.  Re-encode to DER and
         // re-import to trigger the full point decompression and curve check
         // performed by from_der.
