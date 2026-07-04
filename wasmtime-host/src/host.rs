@@ -69,12 +69,10 @@ pub async fn run_component(path: &Path, wasi_args: &[&str]) -> anyhow::Result<()
         Component::from_file(&engine, path).context("Failed to load WebAssembly component")?;
 
     let command = Command::instantiate_async(&mut store, &component, &linker).await?;
-    let result = command.wasi_cli_run().call_run(&mut store).await;
-    match result {
-        Err(trap) => Err(trap
-            .context("HOST TRAP (instance aborted, not a guest error)")
-            .into()),
-        Ok(Err(e)) => Err(anyhow::anyhow!("GUEST RETURNED ERROR: {:?}", e)),
-        Ok(Ok(())) => Ok(()),
-    }
+    command
+        .wasi_cli_run()
+        .call_run(&mut store)
+        .await?
+        .map_err(|_| anyhow::anyhow!("wasi:cli/run implementing function returned error"))?;
+    Ok(())
 }
