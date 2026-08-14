@@ -11,7 +11,9 @@ use crate::rand::SecureRandom;
 use crate::signatures::signature::{
     SignatureLike, SignatureStateLike, SignatureVerificationStateLike,
 };
-use ::sha2::{Digest, Sha256, Sha384};
+// Use sha2 re-exported by k256 (sha2 0.10) -- k256/p256/p384 0.13 require sha2 0.10
+// internally; importing from the top-level sha2 0.11 crate produces type mismatches.
+use k256::sha2::{Digest, Sha256, Sha384};
 use k256::ecdsa::{
     self as ecdsa_k256, signature::DigestVerifier as _, signature::RandomizedDigestSigner as _,
 };

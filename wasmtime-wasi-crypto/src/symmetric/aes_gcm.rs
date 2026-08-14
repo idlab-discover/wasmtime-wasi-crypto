@@ -17,7 +17,7 @@ use crate::{
 };
 use aes_gcm::{AeadInPlace, Aes128Gcm, Aes256Gcm, KeyInit};
 use derivative::Derivative;
-use sha2::digest::generic_array::GenericArray;
+use aes_gcm::aead::generic_array::GenericArray;
 use std::any::Any;
 
 pub const NONCE_LEN: usize = 12;

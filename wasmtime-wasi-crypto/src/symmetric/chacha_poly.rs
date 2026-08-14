@@ -18,7 +18,7 @@ use crate::{
 use aes_gcm::{AeadInPlace, KeyInit};
 use chacha20poly1305::{ChaCha20Poly1305, XChaCha20Poly1305};
 use derivative::Derivative;
-use sha2::digest::generic_array::GenericArray;
+use chacha20poly1305::aead::generic_array::GenericArray;
 use std::any::Any;
 
 pub const TAG_LEN: usize = 16;

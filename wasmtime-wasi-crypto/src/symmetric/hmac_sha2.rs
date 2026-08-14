@@ -16,7 +16,7 @@ use crate::{
     },
 };
 use derivative::Derivative;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, Mac, digest::KeyInit};
 use sha2::{Sha256, Sha512};
 use std::any::Any;
 
