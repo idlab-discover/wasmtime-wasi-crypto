@@ -11,11 +11,11 @@ use crate::rand::SecureRandom;
 use crate::signatures::signature::{
     SignatureLike, SignatureStateLike, SignatureVerificationStateLike,
 };
-// Use sha2 re-exported by k256 (sha2 0.10) -- k256/p256/p384 0.13 require sha2 0.10
-// internally; importing from the top-level sha2 0.11 crate produces type mismatches.
-use k256::sha2::{Digest, Sha256, Sha384};
+use ::sha2::{Digest, Sha256, Sha384};
+use k256::elliptic_curve::Generate as _;
 use k256::ecdsa::{
-    self as ecdsa_k256, signature::DigestVerifier as _, signature::RandomizedDigestSigner as _,
+    self as ecdsa_k256,
+    signature::hazmat::{PrehashVerifier as _, RandomizedPrehashSigner as _},
 };
 use k256::pkcs8::{DecodePrivateKey as _, DecodePublicKey as _};
 use p256::ecdsa::{self as ecdsa_p256};
@@ -45,18 +45,18 @@ impl EcdsaSignatureKeyPair {
     fn from_raw(alg: SignatureAlgorithm, raw: &[u8]) -> CryptoResult<Self> {
         let ctx = match alg {
             SignatureAlgorithm::ECDSA_P256_SHA256 => {
-                let ecdsa_sk = ecdsa_p256::SigningKey::from_bytes(raw.into())
-                    .map_err(|_| CryptoErrno::InvalidKey)?;
+                let ecdsa_sk =
+                    ecdsa_p256::SigningKey::try_from(raw).map_err(|_| CryptoErrno::InvalidKey)?;
                 EcdsaSigningKeyVariant::P256(ecdsa_sk)
             }
             SignatureAlgorithm::ECDSA_K256_SHA256 => {
-                let ecdsa_sk = ecdsa_k256::SigningKey::from_bytes(raw.into())
-                    .map_err(|_| CryptoErrno::InvalidKey)?;
+                let ecdsa_sk =
+                    ecdsa_k256::SigningKey::try_from(raw).map_err(|_| CryptoErrno::InvalidKey)?;
                 EcdsaSigningKeyVariant::K256(ecdsa_sk)
             }
             SignatureAlgorithm::ECDSA_P384_SHA384 => {
-                let ecdsa_sk = ecdsa_p384::SigningKey::from_bytes(raw.into())
-                    .map_err(|_| CryptoErrno::InvalidKey)?;
+                let ecdsa_sk =
+                    ecdsa_p384::SigningKey::try_from(raw).map_err(|_| CryptoErrno::InvalidKey)?;
                 EcdsaSigningKeyVariant::P384(ecdsa_sk)
             }
             _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
@@ -139,15 +139,15 @@ impl EcdsaSignatureKeyPair {
         let mut rng = SecureRandom::new();
         match alg {
             SignatureAlgorithm::ECDSA_P256_SHA256 => {
-                let ecdsa_sk = ecdsa_p256::SigningKey::random(&mut rng);
+                let ecdsa_sk = ecdsa_p256::SigningKey::generate_from_rng(&mut rng);
                 Self::from_raw(alg, ecdsa_sk.to_bytes().as_slice())
             }
             SignatureAlgorithm::ECDSA_K256_SHA256 => {
-                let ecdsa_sk = ecdsa_k256::SigningKey::random(&mut rng);
+                let ecdsa_sk = ecdsa_k256::SigningKey::generate_from_rng(&mut rng);
                 Self::from_raw(alg, ecdsa_sk.to_bytes().as_slice())
             }
             SignatureAlgorithm::ECDSA_P384_SHA384 => {
-                let ecdsa_sk = ecdsa_p384::SigningKey::random(&mut rng);
+                let ecdsa_sk = ecdsa_p384::SigningKey::generate_from_rng(&mut rng);
                 Self::from_raw(alg, ecdsa_sk.to_bytes().as_slice())
             }
             _ => Err(CryptoErrno::UnsupportedAlgorithm.into()),
@@ -263,31 +263,34 @@ impl SignatureStateLike for EcdsaSignatureState {
         let mut rng = SecureRandom::new();
         let encoded_signature = match self.kp.ctx.as_ref() {
             EcdsaSigningKeyVariant::P256(x) => {
-                let digest = match &self.h {
-                    HashVariant::Sha256(x) => x.clone(),
+                let prehash = match &self.h {
+                    HashVariant::Sha256(d) => d.clone().finalize(),
                     _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
                 };
-                let encoded_signature: ecdsa_p256::Signature =
-                    x.sign_digest_with_rng(&mut rng, digest);
-                encoded_signature.to_vec()
+                let sig: ecdsa_p256::Signature = x
+                    .sign_prehash_with_rng(&mut rng, &prehash)
+                    .map_err(|_| CryptoErrno::AlgorithmFailure)?;
+                sig.to_vec()
             }
             EcdsaSigningKeyVariant::K256(x) => {
-                let digest = match &self.h {
-                    HashVariant::Sha256(x) => x.clone(),
+                let prehash = match &self.h {
+                    HashVariant::Sha256(d) => d.clone().finalize(),
                     _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
                 };
-                let encoded_signature: ecdsa_k256::Signature =
-                    x.sign_digest_with_rng(&mut rng, digest);
-                encoded_signature.to_vec()
+                let sig: ecdsa_k256::Signature = x
+                    .sign_prehash_with_rng(&mut rng, &prehash)
+                    .map_err(|_| CryptoErrno::AlgorithmFailure)?;
+                sig.to_vec()
             }
             EcdsaSigningKeyVariant::P384(x) => {
-                let digest = match &self.h {
-                    HashVariant::Sha384(x) => x.clone(),
+                let prehash = match &self.h {
+                    HashVariant::Sha384(d) => d.clone().finalize(),
                     _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
                 };
-                let encoded_signature: ecdsa_p384::Signature =
-                    x.sign_digest_with_rng(&mut rng, digest);
-                encoded_signature.to_vec()
+                let sig: ecdsa_p384::Signature = x
+                    .sign_prehash_with_rng(&mut rng, &prehash)
+                    .map_err(|_| CryptoErrno::AlgorithmFailure)?;
+                sig.to_vec()
             }
         };
         let signature = EcdsaSignature::new(encoded_signature);
@@ -334,29 +337,29 @@ impl SignatureVerificationStateLike for EcdsaSignatureVerificationState {
             EcdsaVerifyingKeyVariant::P256(x) => {
                 let ecdsa_signature = ecdsa_p256::Signature::try_from(signature.as_ref())
                     .map_err(|_| CryptoErrno::InvalidSignature)?;
-                let digest = match &self.h {
-                    HashVariant::Sha256(x) => x.clone(),
+                let prehash = match &self.h {
+                    HashVariant::Sha256(d) => d.clone().finalize().to_vec(),
                     _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
                 };
-                x.verify_digest(digest, &ecdsa_signature)
+                x.verify_prehash(&prehash, &ecdsa_signature)
             }
             EcdsaVerifyingKeyVariant::K256(x) => {
                 let ecdsa_signature = ecdsa_k256::Signature::try_from(signature.as_ref())
                     .map_err(|_| CryptoErrno::InvalidSignature)?;
-                let digest = match &self.h {
-                    HashVariant::Sha256(x) => x.clone(),
+                let prehash = match &self.h {
+                    HashVariant::Sha256(d) => d.clone().finalize().to_vec(),
                     _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
                 };
-                x.verify_digest(digest, &ecdsa_signature)
+                x.verify_prehash(&prehash, &ecdsa_signature)
             }
             EcdsaVerifyingKeyVariant::P384(x) => {
                 let ecdsa_signature = ecdsa_p384::Signature::try_from(signature.as_ref())
                     .map_err(|_| CryptoErrno::InvalidSignature)?;
-                let digest = match &self.h {
-                    HashVariant::Sha384(x) => x.clone(),
+                let prehash = match &self.h {
+                    HashVariant::Sha384(d) => d.clone().finalize().to_vec(),
                     _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
                 };
-                x.verify_digest(digest, &ecdsa_signature)
+                x.verify_prehash(&prehash, &ecdsa_signature)
             }
         }
         .map_err(|_| CryptoErrno::InvalidSignature)?;
@@ -469,9 +472,9 @@ impl EcdsaSignaturePublicKey {
 
     fn as_sec(&self, compress: bool) -> CryptoResult<Vec<u8>> {
         let raw = match self.ctx.as_ref() {
-            EcdsaVerifyingKeyVariant::P256(x) => x.to_encoded_point(compress).to_bytes().to_vec(),
-            EcdsaVerifyingKeyVariant::K256(x) => x.to_encoded_point(compress).to_bytes().to_vec(),
-            EcdsaVerifyingKeyVariant::P384(x) => x.to_encoded_point(compress).to_bytes().to_vec(),
+            EcdsaVerifyingKeyVariant::P256(x) => x.to_sec1_point(compress).as_bytes().to_vec(),
+            EcdsaVerifyingKeyVariant::K256(x) => x.to_sec1_point(compress).as_bytes().to_vec(),
+            EcdsaVerifyingKeyVariant::P384(x) => x.to_sec1_point(compress).as_bytes().to_vec(),
         };
         Ok(raw)
     }
