@@ -11,11 +11,11 @@ wasmtime.workspace = true
 wasmtime-wasi.workspace = true
 
 anyhow.workspace = true
-aes-gcm = "0.10.3"
+aes-gcm = "0.11.0"
 rkyv = { version = "0.8.18", features = ["std"] }
 boring = { version = "5.2.0" }
 byteorder = "1.5.0"
-chacha20poly1305 = "0.10.1"
+chacha20poly1305 = "0.11.0"
 derivative = "2.2.0"
 ed25519-compact = { version = "2.4.0", features = ["x25519"] }
 hkdf = "0.13.0"

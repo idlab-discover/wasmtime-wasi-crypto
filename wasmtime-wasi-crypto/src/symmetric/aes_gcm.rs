@@ -15,9 +15,9 @@ use crate::{
         state::SymmetricStateLike,
     },
 };
-use aes_gcm::{AeadInPlace, Aes128Gcm, Aes256Gcm, KeyInit};
+use aes_gcm::{AeadInOut, Aes128Gcm, Aes256Gcm, KeyInit};
+use aes_gcm::aead::{Nonce, Tag};
 use derivative::Derivative;
-use aes_gcm::aead::generic_array::GenericArray;
 use std::any::Any;
 
 pub const NONCE_LEN: usize = 12;
@@ -137,12 +137,12 @@ impl AesGcmSymmetricState {
         let mut nonce = [0u8; NONCE_LEN];
         nonce.copy_from_slice(nonce_vec);
         let aes_gcm_impl = match alg {
-            SymmetricAlgorithm::Aes128Gcm => {
-                AesGcmVariant::Aes128(Aes128Gcm::new(GenericArray::from_slice(key.as_raw()?)))
-            }
-            SymmetricAlgorithm::Aes256Gcm => {
-                AesGcmVariant::Aes256(Aes256Gcm::new(GenericArray::from_slice(key.as_raw()?)))
-            }
+            SymmetricAlgorithm::Aes128Gcm => AesGcmVariant::Aes128(
+                Aes128Gcm::new_from_slice(key.as_raw()?).map_err(|_| CryptoErrno::InvalidKey)?,
+            ),
+            SymmetricAlgorithm::Aes256Gcm => AesGcmVariant::Aes256(
+                Aes256Gcm::new_from_slice(key.as_raw()?).map_err(|_| CryptoErrno::InvalidKey)?,
+            ),
             _ => return Err(CryptoErrno::UnsupportedAlgorithm.into()),
         };
         let state = AesGcmSymmetricState {
@@ -190,17 +190,18 @@ impl SymmetricStateLike for AesGcmSymmetricState {
     }
 
     fn encrypt_detached_unchecked(&mut self, data: &[u8]) -> CryptoResult<(Vec<u8>, SymmetricTag)> {
-        let nonce = self.nonce.as_ref().ok_or(CryptoErrno::NonceRequired)?;
-        // if out.as_ptr() != data.as_ptr() {
-        //     out.copy_from_slice(data);
-        // }
+        let nonce_bytes = self.nonce.as_ref().ok_or(CryptoErrno::NonceRequired)?;
+        // Nonce length is validated to NONCE_LEN in the constructor, so this cannot fail.
+        let nonce: Nonce<Aes128Gcm> = nonce_bytes[..]
+            .try_into()
+            .expect("nonce is NONCE_LEN bytes; validated in constructor");
         let mut out = data.to_vec();
         let raw_tag = match &self.ctx {
             AesGcmVariant::Aes128(x) => {
-                x.encrypt_in_place_detached(GenericArray::from_slice(nonce), &self.ad, &mut out)
+                x.encrypt_inout_detached(&nonce, &self.ad, (&mut out[..]).into())
             }
             AesGcmVariant::Aes256(x) => {
-                x.encrypt_in_place_detached(GenericArray::from_slice(nonce), &self.ad, &mut out)
+                x.encrypt_inout_detached(&nonce, &self.ad, (&mut out[..]).into())
             }
         }
         .map_err(|_| CryptoErrno::InternalError)?
@@ -215,24 +216,23 @@ impl SymmetricStateLike for AesGcmSymmetricState {
     }
 
     fn decrypt_detached_unchecked(&mut self, data: &[u8], raw_tag: &[u8]) -> CryptoResult<Vec<u8>> {
-        let nonce = self.nonce.as_ref().ok_or(CryptoErrno::NonceRequired)?;
-        // if out.as_ptr() != data.as_ptr() {
-        //     out[..data.len()].copy_from_slice(data);
-        // }
+        let nonce_bytes = self.nonce.as_ref().ok_or(CryptoErrno::NonceRequired)?;
+        // Nonce length is validated to NONCE_LEN in the constructor, so this cannot fail.
+        let nonce: Nonce<Aes128Gcm> = nonce_bytes[..]
+            .try_into()
+            .expect("nonce is NONCE_LEN bytes; validated in constructor");
+        // Tag length comes from the caller; return InvalidTag rather than panicking.
+        let tag: Tag<Aes128Gcm> = raw_tag
+            .try_into()
+            .map_err(|_| CryptoErrno::InvalidTag)?;
         let mut out = data.to_vec();
         match &self.ctx {
-            AesGcmVariant::Aes128(x) => x.decrypt_in_place_detached(
-                GenericArray::from_slice(nonce),
-                &self.ad,
-                &mut out,
-                GenericArray::from_slice(raw_tag),
-            ),
-            AesGcmVariant::Aes256(x) => x.decrypt_in_place_detached(
-                GenericArray::from_slice(nonce),
-                &self.ad,
-                &mut out,
-                GenericArray::from_slice(raw_tag),
-            ),
+            AesGcmVariant::Aes128(x) => {
+                x.decrypt_inout_detached(&nonce, &self.ad, (&mut out[..]).into(), &tag)
+            }
+            AesGcmVariant::Aes256(x) => {
+                x.decrypt_inout_detached(&nonce, &self.ad, (&mut out[..]).into(), &tag)
+            }
         }
         .map_err(|_| CryptoErrno::InvalidTag)?;
         Ok(out)
