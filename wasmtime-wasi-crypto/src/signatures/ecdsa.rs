@@ -12,11 +12,16 @@ use crate::signatures::signature::{
     SignatureLike, SignatureStateLike, SignatureVerificationStateLike,
 };
 use ::sha2::{Digest, Sha256, Sha384};
-use k256::elliptic_curve::Generate as _;
 use k256::ecdsa::{
     self as ecdsa_k256,
+    // The WIT streaming interface retains only the SHA-2 state, so ECDSA must sign
+    // and verify its finalized digest rather than the original message.
+    // SAFETY: This hazmat API is safe here because guests cannot provide a digest:
+    // each fully specified algorithm selects its hash, and this host computes that
+    // hash from guest input.
     signature::hazmat::{PrehashVerifier as _, RandomizedPrehashSigner as _},
 };
+use k256::elliptic_curve::Generate as _;
 use k256::pkcs8::{DecodePrivateKey as _, DecodePublicKey as _};
 use p256::ecdsa::{self as ecdsa_p256};
 use p384::ecdsa::{self as ecdsa_p384};
