@@ -40,8 +40,10 @@ impl OptionsLike for KxOptions {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum KxAlgorithm {
     X25519,
-    Kyber768,
-    Kyber1024,
+    MlKem512,
+    MlKem768,
+    MlKem1024,
+    XWing,
 }
 
 impl TryFrom<&str> for KxAlgorithm {
@@ -50,8 +52,10 @@ impl TryFrom<&str> for KxAlgorithm {
     fn try_from(alg_str: &str) -> CryptoResult<Self> {
         match alg_str.to_uppercase().as_str() {
             "X25519" => Ok(KxAlgorithm::X25519),
-            "KYBER-768" => Ok(KxAlgorithm::Kyber768),
-            "KYBER-1024" => Ok(KxAlgorithm::Kyber1024),
+            "ML-KEM-512" => Ok(KxAlgorithm::MlKem512),
+            "ML-KEM-768" => Ok(KxAlgorithm::MlKem768),
+            "ML-KEM-1024" => Ok(KxAlgorithm::MlKem1024),
+            "X-WING" => Ok(KxAlgorithm::XWing),
             _ => Err(CryptoErrno::UnsupportedAlgorithm.into()),
         }
     }

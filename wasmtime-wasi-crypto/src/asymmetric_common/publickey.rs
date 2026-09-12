@@ -46,7 +46,10 @@ impl PublicKey {
                 let alg = KxAlgorithm::try_from(alg_str)?;
                 let builder = match alg {
                     KxAlgorithm::X25519 => X25519PublicKeyBuilder::new(alg),
-                    _ => return Err(CryptoErrno::NotImplemented.into()),
+                    KxAlgorithm::MlKem512 | KxAlgorithm::MlKem768 | KxAlgorithm::MlKem1024 => {
+                        return Err(CryptoErrno::NotImplemented.into());
+                    }
+                    KxAlgorithm::XWing => return Err(CryptoErrno::NotImplemented.into()),
                 };
                 Ok(PublicKey::KeyExchange(builder.from_raw(encoded)?))
             }

@@ -1,9 +1,12 @@
 #[cfg(feature = "pqcrypto")]
-mod kyber;
+mod mlkem;
+#[cfg(feature = "pqcrypto")]
+mod xwing;
 
 #[cfg(feature = "pqcrypto")]
-pub use kyber::*;
-
+pub use self::mlkem::MlKemKeyPairBuilder;
+#[cfg(feature = "pqcrypto")]
+pub use self::xwing::XWingKeyPairBuilder;
 
 #[derive(Clone, Debug)]
 pub struct EncapsulatedSecret {

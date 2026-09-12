@@ -1,5 +1,5 @@
 #[cfg(feature = "pqcrypto")]
-use crate::key_exchange::kem::{Kyber768KeyPairBuilder, Kyber1024KeyPairBuilder};
+use crate::key_exchange::kem::{MlKemKeyPairBuilder, XWingKeyPairBuilder};
 use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::{CryptoErrno, KeypairEncoding},
     error::CryptoResult,
@@ -48,13 +48,17 @@ impl KxKeyPair {
         let builder = match alg {
             KxAlgorithm::X25519 => X25519KeyPairBuilder::new(alg),
             #[cfg(feature = "pqcrypto")]
-            KxAlgorithm::Kyber768 => Kyber768KeyPairBuilder::new(alg),
+            KxAlgorithm::MlKem512 | KxAlgorithm::MlKem768 | KxAlgorithm::MlKem1024 => {
+                MlKemKeyPairBuilder::new(alg)
+            }
             #[cfg(not(feature = "pqcrypto"))]
-            KxAlgorithm::Kyber768 => return Err(CryptoErrno::NotImplemented),
+            KxAlgorithm::MlKem512 | KxAlgorithm::MlKem768 | KxAlgorithm::MlKem1024 => {
+                return Err(CryptoErrno::NotImplemented);
+            }
             #[cfg(feature = "pqcrypto")]
-            KxAlgorithm::Kyber1024 => Kyber1024KeyPairBuilder::new(alg),
+            KxAlgorithm::XWing => XWingKeyPairBuilder::new(alg),
             #[cfg(not(feature = "pqcrypto"))]
-            KxAlgorithm::Kyber1024 => return Err(CryptoErrno::NotImplemented),
+            KxAlgorithm::XWing => return Err(CryptoErrno::NotImplemented),
         };
         Ok(builder)
     }
