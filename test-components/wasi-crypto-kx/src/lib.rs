@@ -14,17 +14,19 @@ wit_bindgen::generate!({
 #[cfg(test)]
 mod tests {
     use crate::wasi::crypto::wasi_ephemeral_crypto_asymmetric_common::{
-        AlgorithmType, KeypairEncoding, PublickeyEncoding, SecretkeyEncoding,
-        keypair_close, keypair_export, keypair_generate, keypair_publickey, keypair_secretkey,
-        publickey_close, publickey_export, publickey_import, publickey_verify,
-        secretkey_close, secretkey_export, secretkey_import,
+        AlgorithmType, KeypairEncoding, PublickeyEncoding, SecretkeyEncoding, keypair_close,
+        keypair_export, keypair_generate, keypair_publickey, keypair_secretkey, publickey_close,
+        publickey_export, publickey_import, publickey_verify, secretkey_close, secretkey_export,
+        secretkey_import,
     };
     use crate::wasi::crypto::wasi_ephemeral_crypto_common::{CryptoErrno, array_output_pull};
-    use crate::wasi::crypto::wasi_ephemeral_crypto_kx::{kx_dh, kx_encapsulate, kx_decapsulate};
+    use crate::wasi::crypto::wasi_ephemeral_crypto_kx::{kx_decapsulate, kx_dh, kx_encapsulate};
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    fn generate_kp(alg: &str) -> (
+    fn generate_kp(
+        alg: &str,
+    ) -> (
         crate::wasi::crypto::wasi_ephemeral_crypto_common::Keypair,
         crate::wasi::crypto::wasi_ephemeral_crypto_common::Publickey,
         crate::wasi::crypto::wasi_ephemeral_crypto_common::Secretkey,
@@ -90,24 +92,44 @@ mod tests {
         assert!(!kp_raw.is_empty());
 
         // Export public key as Raw, re-import.
-        let pk_raw = array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
+        let pk_raw =
+            array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
         assert_eq!(pk_raw.len(), 32, "X25519 public key is 32 bytes");
-        let pk2 = publickey_import(AlgorithmType::KeyExchange, "X25519", &pk_raw, PublickeyEncoding::Raw).unwrap();
+        let pk2 = publickey_import(
+            AlgorithmType::KeyExchange,
+            "X25519",
+            &pk_raw,
+            PublickeyEncoding::Raw,
+        )
+        .unwrap();
 
         // Export secret key as Raw, re-import.
-        let sk_raw = array_output_pull(secretkey_export(&sk, SecretkeyEncoding::Raw).unwrap()).unwrap();
+        let sk_raw =
+            array_output_pull(secretkey_export(&sk, SecretkeyEncoding::Raw).unwrap()).unwrap();
         assert_eq!(sk_raw.len(), 32, "X25519 secret key is 32 bytes");
-        let sk2 = secretkey_import(AlgorithmType::KeyExchange, "X25519", &sk_raw, SecretkeyEncoding::Raw).unwrap();
+        let sk2 = secretkey_import(
+            AlgorithmType::KeyExchange,
+            "X25519",
+            &sk_raw,
+            SecretkeyEncoding::Raw,
+        )
+        .unwrap();
 
         // Generate a second keypair and verify DH with re-imported keys gives same result.
         let (kp3, pk3, sk3) = generate_kp("X25519");
         let ss_orig = array_output_pull(kx_dh(&pk3, &sk).unwrap()).unwrap();
         let ss_reimport = array_output_pull(kx_dh(&pk3, &sk2).unwrap()).unwrap();
-        assert_eq!(ss_orig, ss_reimport, "re-imported secret key must produce same DH result");
+        assert_eq!(
+            ss_orig, ss_reimport,
+            "re-imported secret key must produce same DH result"
+        );
 
         let ss_orig2 = array_output_pull(kx_dh(&pk, &sk3).unwrap()).unwrap();
         let ss_reimport2 = array_output_pull(kx_dh(&pk2, &sk3).unwrap()).unwrap();
-        assert_eq!(ss_orig2, ss_reimport2, "re-imported public key must produce same DH result");
+        assert_eq!(
+            ss_orig2, ss_reimport2,
+            "re-imported public key must produce same DH result"
+        );
 
         keypair_close(kp).unwrap();
         keypair_close(kp3).unwrap();
@@ -150,15 +172,17 @@ mod tests {
         publickey_close(zero_pk).unwrap();
     }
 
-    // ── Kyber KEM (optional / #[should_panic] if not compiled in) ─────────────
+    // ── ML-KEM / X-Wing KEM ───────────────────────────────────────────────────
 
-    // Adapted from test_key_encapsulation. Kyber support requires the `pqcrypto`
-    // feature on the host; if not enabled the host returns UnsupportedAlgorithm
-    // and the test panics as expected.
-    #[test]
-    #[should_panic]
-    fn kyber768_encapsulate_decapsulate() {
-        let (kp, pk, sk) = generate_kp("KYBER-768");
+    // Helper: full encapsulate/decapsulate round-trip for any KEM algorithm.
+    // Returns (shared_secret, pk_raw_len, sk_raw_len, ciphertext_len, shared_secret_len).
+    fn kem_round_trip(alg: &str) -> (Vec<u8>, usize, usize, usize, usize) {
+        let (kp, pk, sk) = generate_kp(alg);
+
+        let pk_raw =
+            array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
+        let sk_raw =
+            array_output_pull(secretkey_export(&sk, SecretkeyEncoding::Raw).unwrap()).unwrap();
 
         let (secret_ao, encapsulated_ao) = kx_encapsulate(&pk).unwrap();
         let secret = array_output_pull(secret_ao).unwrap();
@@ -167,11 +191,60 @@ mod tests {
         let decapsulated_ao = kx_decapsulate(&sk, &encapsulated).unwrap();
         let decapsulated = array_output_pull(decapsulated_ao).unwrap();
 
-        assert_eq!(secret, decapsulated, "KEM encapsulate/decapsulate must agree");
+        assert_eq!(
+            secret, decapsulated,
+            "{alg}: encapsulate/decapsulate shared secrets must agree"
+        );
+
+        let ct_len = encapsulated.len();
+        let ss_len = secret.len();
+        let pk_len = pk_raw.len();
+        let sk_len = sk_raw.len();
 
         keypair_close(kp).unwrap();
         publickey_close(pk).unwrap();
         secretkey_close(sk).unwrap();
+
+        (secret, pk_len, sk_len, ct_len, ss_len)
+    }
+
+    // Adapted from test_key_encapsulation. All four ML-KEM / X-Wing algorithms
+    // are enabled by default via the `pqcrypto` feature.
+    #[test]
+    fn ml_kem_512_encapsulate_decapsulate() {
+        let (_ss, pk_len, sk_len, ct_len, ss_len) = kem_round_trip("ML-KEM-512");
+        println!("{pk_len}, {sk_len}, {ct_len}, {ss_len}");
+        assert_eq!(pk_len, 800, "ML-KEM-512 public key size");
+        assert_eq!(sk_len, 64, "ML-KEM-512 secret key seed size"); // Secrek key size expanded: 1632
+        assert_eq!(ct_len, 768, "ML-KEM-512 ciphertext size");
+        assert_eq!(ss_len, 32, "ML-KEM-512 shared secret size");
+    }
+
+    #[test]
+    fn ml_kem_768_encapsulate_decapsulate() {
+        let (_ss, pk_len, sk_len, ct_len, ss_len) = kem_round_trip("ML-KEM-768");
+        assert_eq!(pk_len, 1184, "ML-KEM-768 public key size");
+        assert_eq!(sk_len, 64, "ML-KEM-768 secret key seed size"); // Secret key size expanded: 2400
+        assert_eq!(ct_len, 1088, "ML-KEM-768 ciphertext size");
+        assert_eq!(ss_len, 32, "ML-KEM-768 shared secret size");
+    }
+
+    #[test]
+    fn ml_kem_1024_encapsulate_decapsulate() {
+        let (_ss, pk_len, sk_len, ct_len, ss_len) = kem_round_trip("ML-KEM-1024");
+        assert_eq!(pk_len, 1568, "ML-KEM-1024 public key size");
+        assert_eq!(sk_len, 64, "ML-KEM-1024 secret key seed size"); // Secret key size expanded: 3168
+        assert_eq!(ct_len, 1568, "ML-KEM-1024 ciphertext size");
+        assert_eq!(ss_len, 32, "ML-KEM-1024 shared secret size");
+    }
+
+    #[test]
+    fn xwing_encapsulate_decapsulate() {
+        let (_ss, pk_len, sk_len, ct_len, ss_len) = kem_round_trip("X-WING");
+        assert_eq!(pk_len, 1216, "X-WING public key size");
+        assert_eq!(sk_len, 32, "X-WING secret key seed size"); // Secret key size expanded: 2432
+        assert_eq!(ct_len, 1120, "X-WING ciphertext size");
+        assert_eq!(ss_len, 32, "X-WING shared secret size");
     }
 
     // ── X25519: additional coverage ───────────────────────────────────────────
@@ -185,8 +258,8 @@ mod tests {
         // just confirm the mismatch detection path: passing an X25519 sk with an
         // X25519 pk from a different keypair still works (no IncompatibleKeys).
         // The real incompatible-keys path fires when algorithm types differ.
-        // Since we only have X25519 and Kyber (which doesn't support DH),
-        // we generate two X25519 keypairs and verify DH is symmetric.
+        // Since ML-KEM / X-Wing don't support DH, we generate two X25519
+        // keypairs and verify DH is symmetric.
         let (kp1, pk1, sk1) = generate_kp("X25519");
         let (kp2, pk2, sk2) = generate_kp("X25519");
         let ss_fwd = array_output_pull(kx_dh(&pk2, &sk1).unwrap()).unwrap();
@@ -202,7 +275,12 @@ mod tests {
 
     #[test]
     fn x25519_secretkey_import_wrong_size_returns_invalid_key() {
-        match secretkey_import(AlgorithmType::KeyExchange, "X25519", &[0u8; 5], SecretkeyEncoding::Raw) {
+        match secretkey_import(
+            AlgorithmType::KeyExchange,
+            "X25519",
+            &[0u8; 5],
+            SecretkeyEncoding::Raw,
+        ) {
             Err(CryptoErrno::InvalidKey) => {}
             Ok(sk) => {
                 secretkey_close(sk).unwrap();
@@ -210,5 +288,78 @@ mod tests {
             }
             Err(e) => panic!("unexpected error: {e:?}"),
         }
+    }
+
+    // ── ML-KEM / X-Wing keypair export+import round-trips ─────────────────────
+
+    // Helper: export pk and sk as Raw, re-import both, then verify that
+    // re-encapsulating with the re-imported pk and decapsulating with the
+    // re-imported sk still produces the same shared secret.
+    fn kem_export_import_round_trip(alg: &str) {
+        let (kp, pk, sk) = generate_kp(alg);
+
+        // Export and re-import the encapsulation (public) key.
+        let pk_raw =
+            array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
+        let pk2 = publickey_import(
+            AlgorithmType::KeyExchange,
+            alg,
+            &pk_raw,
+            PublickeyEncoding::Raw,
+        )
+        .unwrap_or_else(|e| panic!("{alg}: publickey_import failed: {e:?}"));
+
+        // Export and re-import the decapsulation (secret) key.
+        let sk_raw =
+            array_output_pull(secretkey_export(&sk, SecretkeyEncoding::Raw).unwrap()).unwrap();
+        let sk2 = secretkey_import(
+            AlgorithmType::KeyExchange,
+            alg,
+            &sk_raw,
+            SecretkeyEncoding::Raw,
+        )
+        .unwrap_or_else(|e| panic!("{alg}: secretkey_import failed: {e:?}"));
+
+        // Encapsulate to the re-imported public key; decapsulate with the
+        // re-imported secret key. The shared secrets must agree.
+        let (secret_ao, ct_ao) = kx_encapsulate(&pk2)
+            .unwrap_or_else(|e| panic!("{alg}: kx_encapsulate (re-imported pk) failed: {e:?}"));
+        let secret = array_output_pull(secret_ao).unwrap();
+        let ct = array_output_pull(ct_ao).unwrap();
+
+        let dec_ao = kx_decapsulate(&sk2, &ct)
+            .unwrap_or_else(|e| panic!("{alg}: kx_decapsulate (re-imported sk) failed: {e:?}"));
+        let decapsulated = array_output_pull(dec_ao).unwrap();
+
+        assert_eq!(
+            secret, decapsulated,
+            "{alg}: re-imported pk/sk must produce matching shared secrets"
+        );
+
+        keypair_close(kp).unwrap();
+        publickey_close(pk).unwrap();
+        publickey_close(pk2).unwrap();
+        secretkey_close(sk).unwrap();
+        secretkey_close(sk2).unwrap();
+    }
+
+    #[test]
+    fn ml_kem_512_keypair_export_import_round_trip() {
+        kem_export_import_round_trip("ML-KEM-512");
+    }
+
+    #[test]
+    fn ml_kem_768_keypair_export_import_round_trip() {
+        kem_export_import_round_trip("ML-KEM-768");
+    }
+
+    #[test]
+    fn ml_kem_1024_keypair_export_import_round_trip() {
+        kem_export_import_round_trip("ML-KEM-1024");
+    }
+
+    #[test]
+    fn xwing_keypair_export_import_round_trip() {
+        kem_export_import_round_trip("X-WING");
     }
 }

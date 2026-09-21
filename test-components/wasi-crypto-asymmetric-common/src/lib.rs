@@ -14,11 +14,10 @@ wit_bindgen::generate!({
 #[cfg(test)]
 mod tests {
     use crate::wasi::crypto::wasi_ephemeral_crypto_asymmetric_common::{
-        AlgorithmType, KeypairEncoding, PublickeyEncoding, SecretkeyEncoding,
-        keypair_close, keypair_export, keypair_from_pk_and_sk, keypair_generate, keypair_import,
-        keypair_publickey, keypair_secretkey,
-        publickey_close, publickey_export, publickey_import, publickey_verify,
-        secretkey_close, secretkey_export, secretkey_import,
+        AlgorithmType, KeypairEncoding, PublickeyEncoding, SecretkeyEncoding, keypair_close,
+        keypair_export, keypair_from_pk_and_sk, keypair_generate, keypair_import,
+        keypair_publickey, keypair_secretkey, publickey_close, publickey_export, publickey_import,
+        publickey_verify, secretkey_close, secretkey_export, secretkey_import,
     };
     use crate::wasi::crypto::wasi_ephemeral_crypto_common::{CryptoErrno, array_output_pull};
 
@@ -55,14 +54,25 @@ mod tests {
         let kp = keypair_generate(AlgorithmType::Signatures, "Ed25519", None).unwrap();
         let raw = array_output_pull(keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
         assert!(!raw.is_empty());
-        let kp2 = keypair_import(AlgorithmType::Signatures, "Ed25519", &raw, KeypairEncoding::Raw).unwrap();
+        let kp2 = keypair_import(
+            AlgorithmType::Signatures,
+            "Ed25519",
+            &raw,
+            KeypairEncoding::Raw,
+        )
+        .unwrap();
         keypair_close(kp).unwrap();
         keypair_close(kp2).unwrap();
     }
 
     #[test]
     fn keypair_import_invalid_key_returns_error() {
-        match keypair_import(AlgorithmType::Signatures, "Ed25519", &[0u8; 3], KeypairEncoding::Raw) {
+        match keypair_import(
+            AlgorithmType::Signatures,
+            "Ed25519",
+            &[0u8; 3],
+            KeypairEncoding::Raw,
+        ) {
             Err(CryptoErrno::InvalidKey) => {}
             Ok(kp) => {
                 keypair_close(kp).unwrap();
@@ -74,7 +84,12 @@ mod tests {
 
     #[test]
     fn keypair_import_kx_not_implemented_returns_error() {
-        match keypair_import(AlgorithmType::KeyExchange, "X25519", &[0u8; 64], KeypairEncoding::Raw) {
+        match keypair_import(
+            AlgorithmType::KeyExchange,
+            "X25519",
+            &[0u8; 64],
+            KeypairEncoding::Raw,
+        ) {
             Err(CryptoErrno::InvalidOperation) | Err(CryptoErrno::NotImplemented) => {}
             Ok(kp) => {
                 keypair_close(kp).unwrap();
@@ -155,10 +170,17 @@ mod tests {
         let kp = keypair_generate(AlgorithmType::Signatures, "Ed25519", None).unwrap();
         let pk = keypair_publickey(&kp).unwrap();
 
-        let raw = array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
+        let raw =
+            array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
         assert_eq!(raw.len(), 32, "Ed25519 public key is 32 bytes");
 
-        let pk2 = publickey_import(AlgorithmType::Signatures, "Ed25519", &raw, PublickeyEncoding::Raw).unwrap();
+        let pk2 = publickey_import(
+            AlgorithmType::Signatures,
+            "Ed25519",
+            &raw,
+            PublickeyEncoding::Raw,
+        )
+        .unwrap();
 
         keypair_close(kp).unwrap();
         publickey_close(pk).unwrap();
@@ -170,10 +192,17 @@ mod tests {
         let kp = keypair_generate(AlgorithmType::KeyExchange, "X25519", None).unwrap();
         let pk = keypair_publickey(&kp).unwrap();
 
-        let raw = array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
+        let raw =
+            array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
         assert_eq!(raw.len(), 32, "X25519 public key is 32 bytes");
 
-        let pk2 = publickey_import(AlgorithmType::KeyExchange, "X25519", &raw, PublickeyEncoding::Raw).unwrap();
+        let pk2 = publickey_import(
+            AlgorithmType::KeyExchange,
+            "X25519",
+            &raw,
+            PublickeyEncoding::Raw,
+        )
+        .unwrap();
         publickey_verify(&pk2).unwrap();
 
         keypair_close(kp).unwrap();
@@ -183,7 +212,12 @@ mod tests {
 
     #[test]
     fn publickey_import_wrong_size_returns_invalid_key() {
-        match publickey_import(AlgorithmType::Signatures, "Ed25519", &[0u8; 5], PublickeyEncoding::Raw) {
+        match publickey_import(
+            AlgorithmType::Signatures,
+            "Ed25519",
+            &[0u8; 5],
+            PublickeyEncoding::Raw,
+        ) {
             Err(CryptoErrno::InvalidKey) => {}
             Ok(pk) => {
                 publickey_close(pk).unwrap();
@@ -195,7 +229,12 @@ mod tests {
 
     #[test]
     fn publickey_import_unknown_algorithm_returns_error() {
-        match publickey_import(AlgorithmType::Signatures, "__not_a_real_algo__", &[0u8; 32], PublickeyEncoding::Raw) {
+        match publickey_import(
+            AlgorithmType::Signatures,
+            "__not_a_real_algo__",
+            &[0u8; 32],
+            PublickeyEncoding::Raw,
+        ) {
             Err(CryptoErrno::UnsupportedAlgorithm) => {}
             Ok(pk) => {
                 publickey_close(pk).unwrap();
@@ -212,7 +251,8 @@ mod tests {
         let kp = keypair_generate(AlgorithmType::KeyExchange, "X25519", None).unwrap();
         let sk = keypair_secretkey(&kp).unwrap();
 
-        let raw = array_output_pull(secretkey_export(&sk, SecretkeyEncoding::Raw).unwrap()).unwrap();
+        let raw =
+            array_output_pull(secretkey_export(&sk, SecretkeyEncoding::Raw).unwrap()).unwrap();
         assert_eq!(raw.len(), 32, "X25519 secret key is 32 bytes");
 
         keypair_close(kp).unwrap();
@@ -223,9 +263,16 @@ mod tests {
     fn secretkey_import_x25519_raw() {
         let kp = keypair_generate(AlgorithmType::KeyExchange, "X25519", None).unwrap();
         let sk = keypair_secretkey(&kp).unwrap();
-        let raw = array_output_pull(secretkey_export(&sk, SecretkeyEncoding::Raw).unwrap()).unwrap();
+        let raw =
+            array_output_pull(secretkey_export(&sk, SecretkeyEncoding::Raw).unwrap()).unwrap();
 
-        let sk2 = secretkey_import(AlgorithmType::KeyExchange, "X25519", &raw, SecretkeyEncoding::Raw).unwrap();
+        let sk2 = secretkey_import(
+            AlgorithmType::KeyExchange,
+            "X25519",
+            &raw,
+            SecretkeyEncoding::Raw,
+        )
+        .unwrap();
 
         secretkey_close(sk).unwrap();
         secretkey_close(sk2).unwrap();
@@ -234,7 +281,12 @@ mod tests {
 
     #[test]
     fn secretkey_import_signatures_not_implemented() {
-        match secretkey_import(AlgorithmType::Signatures, "Ed25519", &[0u8; 64], SecretkeyEncoding::Raw) {
+        match secretkey_import(
+            AlgorithmType::Signatures,
+            "Ed25519",
+            &[0u8; 64],
+            SecretkeyEncoding::Raw,
+        ) {
             Err(CryptoErrno::NotImplemented) => {}
             Ok(sk) => {
                 secretkey_close(sk).unwrap();
@@ -250,7 +302,13 @@ mod tests {
     fn keypair_import_ecdsa_p256_raw() {
         let kp = keypair_generate(AlgorithmType::Signatures, "ECDSA_P256_SHA256", None).unwrap();
         let raw = array_output_pull(keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
-        let kp2 = keypair_import(AlgorithmType::Signatures, "ECDSA_P256_SHA256", &raw, KeypairEncoding::Raw).unwrap();
+        let kp2 = keypair_import(
+            AlgorithmType::Signatures,
+            "ECDSA_P256_SHA256",
+            &raw,
+            KeypairEncoding::Raw,
+        )
+        .unwrap();
         keypair_close(kp).unwrap();
         keypair_close(kp2).unwrap();
     }
@@ -259,7 +317,13 @@ mod tests {
     fn keypair_import_ecdsa_p384_raw() {
         let kp = keypair_generate(AlgorithmType::Signatures, "ECDSA_P384_SHA384", None).unwrap();
         let raw = array_output_pull(keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
-        let kp2 = keypair_import(AlgorithmType::Signatures, "ECDSA_P384_SHA384", &raw, KeypairEncoding::Raw).unwrap();
+        let kp2 = keypair_import(
+            AlgorithmType::Signatures,
+            "ECDSA_P384_SHA384",
+            &raw,
+            KeypairEncoding::Raw,
+        )
+        .unwrap();
         keypair_close(kp).unwrap();
         keypair_close(kp2).unwrap();
     }
@@ -270,8 +334,15 @@ mod tests {
     fn publickey_export_import_ecdsa_p256_raw() {
         let kp = keypair_generate(AlgorithmType::Signatures, "ECDSA_P256_SHA256", None).unwrap();
         let pk = keypair_publickey(&kp).unwrap();
-        let raw = array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
-        let pk2 = publickey_import(AlgorithmType::Signatures, "ECDSA_P256_SHA256", &raw, PublickeyEncoding::Raw).unwrap();
+        let raw =
+            array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
+        let pk2 = publickey_import(
+            AlgorithmType::Signatures,
+            "ECDSA_P256_SHA256",
+            &raw,
+            PublickeyEncoding::Raw,
+        )
+        .unwrap();
         keypair_close(kp).unwrap();
         publickey_close(pk).unwrap();
         publickey_close(pk2).unwrap();
@@ -281,8 +352,15 @@ mod tests {
     fn publickey_export_import_ecdsa_p384_raw() {
         let kp = keypair_generate(AlgorithmType::Signatures, "ECDSA_P384_SHA384", None).unwrap();
         let pk = keypair_publickey(&kp).unwrap();
-        let raw = array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
-        let pk2 = publickey_import(AlgorithmType::Signatures, "ECDSA_P384_SHA384", &raw, PublickeyEncoding::Raw).unwrap();
+        let raw =
+            array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
+        let pk2 = publickey_import(
+            AlgorithmType::Signatures,
+            "ECDSA_P384_SHA384",
+            &raw,
+            PublickeyEncoding::Raw,
+        )
+        .unwrap();
         keypair_close(kp).unwrap();
         publickey_close(pk).unwrap();
         publickey_close(pk2).unwrap();

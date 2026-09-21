@@ -54,9 +54,8 @@ mod tests {
     fn key_export_produces_array_output() {
         let key = import("HMAC/SHA-256", b"0123456789abcdef0123456789abcdef");
         let array_out = symmetric_key_export(&key).unwrap();
-        let bytes =
-            crate::wasi::crypto::wasi_ephemeral_crypto_common::array_output_pull(array_out)
-                .unwrap();
+        let bytes = crate::wasi::crypto::wasi_ephemeral_crypto_common::array_output_pull(array_out)
+            .unwrap();
         assert_eq!(bytes, b"0123456789abcdef0123456789abcdef");
     }
 
@@ -341,7 +340,10 @@ mod tests {
         let state = symmetric_state_open("AES-256-GCM", Some(&key), Some(&opts)).unwrap();
         options_close(opts).unwrap();
         let nonce_buf = symmetric_state_options_get(&state, "nonce").unwrap();
-        assert_eq!(nonce_buf, nonce, "nonce retrieved from state must match the one set");
+        assert_eq!(
+            nonce_buf, nonce,
+            "nonce retrieved from state must match the one set"
+        );
         symmetric_state_close(state).unwrap();
         symmetric_key_close(key).unwrap();
     }
@@ -495,8 +497,14 @@ mod tests {
             0x41, 0x31, 0x12, 0xe6, 0xfa, 0x4e, 0x89, 0xa9, 0x7e, 0xa2, 0x0a, 0x9e, 0xee, 0xe6,
             0x4b, 0x55, 0xd3, 0x9a,
         ];
-        assert_eq!(out, expected, "SHA-512/256 must use FIPS 180-4 initial values");
-        assert_ne!(out, truncated_sha512, "SHA-512/256 must not be plain truncated SHA-512");
+        assert_eq!(
+            out, expected,
+            "SHA-512/256 must use FIPS 180-4 initial values"
+        );
+        assert_ne!(
+            out, truncated_sha512,
+            "SHA-512/256 must not be plain truncated SHA-512"
+        );
     }
 
     #[test]
@@ -507,8 +515,8 @@ mod tests {
         symmetric_state_absorb(&state, b"more_data").unwrap();
         let out = symmetric_state_squeeze(&state).unwrap();
         let expected: [u8; 32] = [
-            19, 196, 14, 236, 34, 84, 26, 21, 94, 23, 32, 16, 199, 253, 110, 246, 84, 228, 225,
-            56, 160, 194, 9, 35, 249, 169, 16, 98, 162, 127, 87, 182,
+            19, 196, 14, 236, 34, 84, 26, 21, 94, 23, 32, 16, 199, 253, 110, 246, 84, 228, 225, 56,
+            160, 194, 9, 35, 249, 169, 16, 98, 162, 127, 87, 182,
         ];
         assert_eq!(out, expected);
     }
@@ -549,7 +557,8 @@ mod tests {
         options_set(&opts2, "nonce", &nonce).unwrap();
         let dec_state = symmetric_state_open("AES-128-GCM", Some(&key), Some(&opts2)).unwrap();
         options_close(opts2).unwrap();
-        let plaintext = symmetric_state_decrypt(&dec_state, &ciphertext, message.len() as u32).unwrap();
+        let plaintext =
+            symmetric_state_decrypt(&dec_state, &ciphertext, message.len() as u32).unwrap();
         assert_eq!(plaintext, message);
         symmetric_key_close(key).unwrap();
     }
@@ -596,9 +605,11 @@ mod tests {
 
         let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
         options_set(&opts2, "nonce", &nonce).unwrap();
-        let dec_state = symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
+        let dec_state =
+            symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
         options_close(opts2).unwrap();
-        let plaintext = symmetric_state_decrypt(&dec_state, &ciphertext, message.len() as u32).unwrap();
+        let plaintext =
+            symmetric_state_decrypt(&dec_state, &ciphertext, message.len() as u32).unwrap();
         assert_eq!(plaintext, message);
         symmetric_key_close(key).unwrap();
     }
@@ -629,7 +640,8 @@ mod tests {
 
         let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
         options_set(&opts2, "nonce", &nonce).unwrap();
-        let dec_state = symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
+        let dec_state =
+            symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
         options_close(opts2).unwrap();
         let out_len = (ciphertext.len() - 16) as u32;
         match symmetric_state_decrypt(&dec_state, &ciphertext, out_len) {
@@ -655,9 +667,11 @@ mod tests {
 
         let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
         options_set(&opts2, "nonce", &nonce).unwrap();
-        let dec_state = symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
+        let dec_state =
+            symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
         options_close(opts2).unwrap();
-        let plaintext = symmetric_state_decrypt_detached(&dec_state, &ciphertext, &raw_tag).unwrap();
+        let plaintext =
+            symmetric_state_decrypt_detached(&dec_state, &ciphertext, &raw_tag).unwrap();
         assert_eq!(plaintext, message);
         symmetric_key_close(key).unwrap();
     }
@@ -672,15 +686,18 @@ mod tests {
 
         let opts = options_open(AlgorithmType::Symmetric).unwrap();
         options_set(&opts, "nonce", &nonce).unwrap();
-        let enc_state = symmetric_state_open("XCHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
+        let enc_state =
+            symmetric_state_open("XCHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
         options_close(opts).unwrap();
         let ciphertext = symmetric_state_encrypt(&enc_state, message).unwrap();
 
         let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
         options_set(&opts2, "nonce", &nonce).unwrap();
-        let dec_state = symmetric_state_open("XCHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
+        let dec_state =
+            symmetric_state_open("XCHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
         options_close(opts2).unwrap();
-        let plaintext = symmetric_state_decrypt(&dec_state, &ciphertext, message.len() as u32).unwrap();
+        let plaintext =
+            symmetric_state_decrypt(&dec_state, &ciphertext, message.len() as u32).unwrap();
         assert_eq!(plaintext, message);
         symmetric_key_close(key).unwrap();
     }
@@ -692,7 +709,8 @@ mod tests {
 
         let opts = options_open(AlgorithmType::Symmetric).unwrap();
         options_set(&opts, "nonce", &nonce).unwrap();
-        let enc_state = symmetric_state_open("XCHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
+        let enc_state =
+            symmetric_state_open("XCHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
         options_close(opts).unwrap();
         let mut ciphertext = symmetric_state_encrypt(&enc_state, b"hello").unwrap();
         let len = ciphertext.len();
@@ -700,7 +718,8 @@ mod tests {
 
         let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
         options_set(&opts2, "nonce", &nonce).unwrap();
-        let dec_state = symmetric_state_open("XCHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
+        let dec_state =
+            symmetric_state_open("XCHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
         options_close(opts2).unwrap();
         let out_len = (ciphertext.len() - 16) as u32;
         match symmetric_state_decrypt(&dec_state, &ciphertext, out_len) {
@@ -774,8 +793,14 @@ mod tests {
         symmetric_state_ratchet(&receiver).unwrap();
         let squeezed_receiver2 = symmetric_state_squeeze(&receiver).unwrap();
 
-        assert_eq!(squeezed_sender1, squeezed_receiver1, "pre-encrypt squeeze must match");
-        assert_eq!(squeezed_sender2, squeezed_receiver2, "post-ratchet squeeze must match");
+        assert_eq!(
+            squeezed_sender1, squeezed_receiver1,
+            "pre-encrypt squeeze must match"
+        );
+        assert_eq!(
+            squeezed_sender2, squeezed_receiver2,
+            "post-ratchet squeeze must match"
+        );
         symmetric_key_close(key).unwrap();
     }
 
