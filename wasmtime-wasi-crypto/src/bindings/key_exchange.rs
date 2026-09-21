@@ -20,7 +20,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         let pk = self.table.get(&pk)?.clone().into_kx_public_key()?;
         let sk = self.table.get(&sk)?.clone().into_kx_secret_key()?;
         let shared_secret = sk.dh(&pk)?;
-        Ok(ArrayOutput::register(self.table, shared_secret)?)
+        ArrayOutput::register(self.table, shared_secret)
     }
 
     #[doc = "/ Create a shared secret and encrypt it for the given public key."]
@@ -54,6 +54,6 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     ) -> CryptoResult<wasmtime::component::Resource<ArrayOutput>> {
         let sk = self.table.get(&sk)?.clone().into_kx_secret_key()?;
         let shared_secret = sk.decapsulate(&encapsulated_secret)?;
-        Ok(ArrayOutput::register(self.table, shared_secret)?)
+        ArrayOutput::register(self.table, shared_secret)
     }
 }

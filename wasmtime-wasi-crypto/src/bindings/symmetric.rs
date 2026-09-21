@@ -468,7 +468,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         state: wasmtime::component::Resource<SymmetricState>,
     ) -> CryptoResult<wasmtime::component::__internal::Vec<u8>> {
         let symmetric_state = self.table.get(&state)?;
-        Ok(symmetric_state.locked(|mut state| state.squeeze_unchecked())?)
+        symmetric_state.locked(|mut state| state.squeeze_unchecked())
     }
 
     #[doc = "/ Compute and return a tag for all the data injected into the state so far."]
@@ -541,7 +541,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         data: wasmtime::component::__internal::Vec<u8>,
     ) -> CryptoResult<wasmtime::component::__internal::Vec<u8>> {
         let symmetric_state = self.table.get(&state)?;
-        Ok(symmetric_state.locked(|mut state| state.encrypt(&data))?)
+        symmetric_state.locked(|mut state| state.encrypt(&data))
     }
 
     #[doc = "/ Encrypt data, with a detached tag."]
@@ -583,7 +583,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         out_len: u32,
     ) -> CryptoResult<wasmtime::component::__internal::Vec<u8>> {
         let symmetric_state = self.table.get(&state)?;
-        Ok(symmetric_state.locked(|mut state| state.decrypt(&data, out_len as usize))?)
+        symmetric_state.locked(|mut state| state.decrypt(&data, out_len as usize))
     }
 
     #[doc = "/ - **Stream cipher:** returns `invalid_operation` since stream ciphers do not include authentication tags."]
@@ -604,7 +604,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         raw_tag: wasmtime::component::__internal::Vec<u8>,
     ) -> CryptoResult<wasmtime::component::__internal::Vec<u8>> {
         let symmetric_state = self.table.get(&state)?;
-        Ok(symmetric_state.locked(|mut state| state.decrypt_detached(&data, &raw_tag))?)
+        symmetric_state.locked(|mut state| state.decrypt_detached(&data, &raw_tag))
     }
 
     #[doc = "/ Make it impossible to recover the previous state."]

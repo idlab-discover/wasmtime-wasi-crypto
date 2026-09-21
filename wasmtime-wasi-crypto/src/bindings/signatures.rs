@@ -73,7 +73,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         kp: wasmtime::component::Resource<SignatureKeypair>,
     ) -> CryptoResult<wasmtime::component::Resource<SignatureState>> {
-        Ok(SignatureState::open(self.table, kp)?)
+        SignatureState::open(self.table, kp)
     }
 
     #[doc = "/ Absorb data into the signature state."]
@@ -135,7 +135,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         kp: wasmtime::component::Resource<SignaturePublickey>,
     ) -> CryptoResult<wasmtime::component::Resource<SignatureVerificationState>> {
-        Ok(SignatureVerificationState::open(self.table, kp)?)
+        SignatureVerificationState::open(self.table, kp)
     }
 
     #[doc = "/ Absorb data into the signature verification state."]
