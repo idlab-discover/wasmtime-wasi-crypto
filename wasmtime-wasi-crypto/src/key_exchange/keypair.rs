@@ -53,12 +53,12 @@ impl KxKeyPair {
             }
             #[cfg(not(feature = "pqcrypto"))]
             KxAlgorithm::MlKem512 | KxAlgorithm::MlKem768 | KxAlgorithm::MlKem1024 => {
-                return Err(CryptoErrno::NotImplemented);
+                return Err(CryptoErrno::NotImplemented.into());
             }
             #[cfg(feature = "pqcrypto")]
             KxAlgorithm::XWing => XWingKeyPairBuilder::new(alg),
             #[cfg(not(feature = "pqcrypto"))]
-            KxAlgorithm::XWing => return Err(CryptoErrno::NotImplemented),
+            KxAlgorithm::XWing => return Err(CryptoErrno::NotImplemented.into()),
         };
         Ok(builder)
     }

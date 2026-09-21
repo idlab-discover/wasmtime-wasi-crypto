@@ -4,9 +4,9 @@ mod mlkem;
 mod xwing;
 
 #[cfg(feature = "pqcrypto")]
-pub use self::mlkem::MlKemKeyPairBuilder;
+pub use self::mlkem::{MlKemKeyPairBuilder, MlKemPublicKeyBuilder, MlKemSecretKeyBuilder};
 #[cfg(feature = "pqcrypto")]
-pub use self::xwing::XWingKeyPairBuilder;
+pub use self::xwing::{XWingKeyPairBuilder, XWingPublicKeyBuilder, XWingSecretKeyBuilder};
 
 #[derive(Clone, Debug)]
 pub struct EncapsulatedSecret {

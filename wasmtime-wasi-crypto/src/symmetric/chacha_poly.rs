@@ -16,8 +16,8 @@ use crate::{
     },
 };
 use aes_gcm::{AeadInOut, KeyInit};
-use chacha20poly1305::{ChaCha20Poly1305, XChaCha20Poly1305};
 use chacha20poly1305::aead::{Nonce, Tag};
+use chacha20poly1305::{ChaCha20Poly1305, XChaCha20Poly1305};
 use derivative::Derivative;
 use std::any::Any;
 
@@ -240,18 +240,16 @@ impl SymmetricStateLike for ChaChaPolySymmetricState {
                 let n: Nonce<ChaCha20Poly1305> = nonce[..]
                     .try_into()
                     .expect("ChaCha nonce is 12 bytes; validated in constructor");
-                let t: Tag<ChaCha20Poly1305> = raw_tag
-                    .try_into()
-                    .map_err(|_| CryptoErrno::InvalidTag)?;
+                let t: Tag<ChaCha20Poly1305> =
+                    raw_tag.try_into().map_err(|_| CryptoErrno::InvalidTag)?;
                 x.decrypt_inout_detached(&n, &self.ad, (&mut out[..]).into(), &t)
             }
             ChaChaPolyVariant::XChaCha(x) => {
                 let n: Nonce<XChaCha20Poly1305> = nonce[..]
                     .try_into()
                     .expect("XChaCha nonce is 24 bytes; validated in constructor");
-                let t: Tag<XChaCha20Poly1305> = raw_tag
-                    .try_into()
-                    .map_err(|_| CryptoErrno::InvalidTag)?;
+                let t: Tag<XChaCha20Poly1305> =
+                    raw_tag.try_into().map_err(|_| CryptoErrno::InvalidTag)?;
                 x.decrypt_inout_detached(&n, &self.ad, (&mut out[..]).into(), &t)
             }
         }

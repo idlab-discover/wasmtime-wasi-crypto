@@ -4,7 +4,7 @@ use crate::{
         AlgorithmType, CryptoErrno, SecretkeyEncoding,
     },
     error::CryptoResult,
-    key_exchange::{KxAlgorithm, X25519SecretKeyBuilder, secretkey::KxSecretKey},
+    key_exchange::{KxAlgorithm, secretkey::KxSecretKey},
     signatures::secretkey::SignatureSecretKey,
 };
 
@@ -33,16 +33,14 @@ impl SecretKey {
         alg_type: AlgorithmType,
         alg_str: &str,
         encoded: &[u8],
-        _encoding: SecretkeyEncoding,
+        encoding: SecretkeyEncoding,
     ) -> CryptoResult<SecretKey> {
         match alg_type {
             AlgorithmType::KeyExchange => {
                 let alg = KxAlgorithm::try_from(alg_str)?;
-                let builder = match alg {
-                    KxAlgorithm::X25519 => X25519SecretKeyBuilder::new(alg),
-                    _ => return Err(CryptoErrno::NotImplemented.into()),
-                };
-                Ok(SecretKey::KeyExchange(builder.from_raw(encoded)?))
+                Ok(SecretKey::KeyExchange(KxSecretKey::import(
+                    alg, encoded, encoding,
+                )?))
             }
             _ => Err(CryptoErrno::NotImplemented.into()),
         }

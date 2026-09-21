@@ -5,8 +5,8 @@ use crate::{
         KxAlgorithm, KxOptions,
         kem::EncapsulatedSecret,
         keypair::{KxKeyPair, KxKeyPairBuilder, KxKeyPairLike},
-        publickey::{KxPublicKey, KxPublicKeyLike},
-        secretkey::{KxSecretKey, KxSecretKeyLike},
+        publickey::{KxPublicKey, KxPublicKeyBuilder, KxPublicKeyLike},
+        secretkey::{KxSecretKey, KxSecretKeyBuilder, KxSecretKeyLike},
     },
 };
 use derivative::Derivative;
@@ -135,6 +135,53 @@ impl KxKeyPairBuilder for MlKemKeyPairBuilder {
             sk,
         };
         Ok(KxKeyPair::new(Box::new(kp)))
+    }
+}
+
+pub struct MlKemSecretKeyBuilder {
+    alg: KxAlgorithm,
+}
+
+impl KxSecretKeyBuilder for MlKemSecretKeyBuilder {
+    fn from_raw(&self, raw: &[u8]) -> CryptoResult<KxSecretKey> {
+        if raw.len() != SK_LEN {
+            return Err(CryptoErrno::InvalidKey.into());
+        };
+        let sk = MlKemSecretKey::new(self.alg, raw.to_vec());
+        Ok(KxSecretKey::new(Box::new(sk)))
+    }
+}
+
+impl MlKemSecretKeyBuilder {
+    pub fn new(alg: KxAlgorithm) -> Box<dyn KxSecretKeyBuilder> {
+        Box::new(Self { alg })
+    }
+}
+
+pub struct MlKemPublicKeyBuilder {
+    alg: KxAlgorithm,
+}
+
+impl KxPublicKeyBuilder for MlKemPublicKeyBuilder {
+    fn from_raw(&self, raw: &[u8]) -> CryptoResult<KxPublicKey> {
+        let pk_len = match self.alg {
+            KxAlgorithm::X25519 => return Err(CryptoErrno::InvalidKey.into()),
+            KxAlgorithm::MlKem512 => 800,
+            KxAlgorithm::MlKem768 => 1184,
+            KxAlgorithm::MlKem1024 => 1568,
+            KxAlgorithm::XWing => return Err(CryptoErrno::InvalidKey.into()),
+        };
+        if raw.len() != pk_len {
+            return Err(CryptoErrno::InvalidKey.into());
+        };
+        let pk = MlKemPublicKey::new(self.alg, raw.to_vec());
+        Ok(KxPublicKey::new(Box::new(pk)))
+    }
+}
+
+impl MlKemPublicKeyBuilder {
+    pub fn new(alg: KxAlgorithm) -> Box<dyn KxPublicKeyBuilder> {
+        Box::new(Self { alg })
     }
 }
 

@@ -1,7 +1,9 @@
+#[cfg(feature = "pqcrypto")]
+use crate::key_exchange::kem::{MlKemSecretKeyBuilder, XWingSecretKeyBuilder};
 use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::{CryptoErrno, SecretkeyEncoding},
     error::CryptoResult,
-    key_exchange::{KxAlgorithm, publickey::KxPublicKey},
+    key_exchange::{KxAlgorithm, dh::X25519SecretKeyBuilder, publickey::KxPublicKey},
 };
 use std::{
     any::Any,
@@ -37,6 +39,40 @@ impl KxSecretKey {
 
     pub fn alg(&self) -> KxAlgorithm {
         self.inner().alg()
+    }
+
+    pub fn builder(alg: KxAlgorithm) -> CryptoResult<Box<dyn KxSecretKeyBuilder>> {
+        let builder = match alg {
+            KxAlgorithm::X25519 => X25519SecretKeyBuilder::new(alg),
+            #[cfg(feature = "pqcrypto")]
+            KxAlgorithm::MlKem512 | KxAlgorithm::MlKem768 | KxAlgorithm::MlKem1024 => {
+                MlKemSecretKeyBuilder::new(alg)
+            }
+            #[cfg(not(feature = "pqcrypto"))]
+            KxAlgorithm::MlKem512 | KxAlgorithm::MlKem768 | KxAlgorithm::MlKem1024 => {
+                return Err(CryptoErrno::NotImplemented.into());
+            }
+            #[cfg(feature = "pqcrypto")]
+            KxAlgorithm::XWing => XWingSecretKeyBuilder::new(alg),
+            #[cfg(not(feature = "pqcrypto"))]
+            KxAlgorithm::XWing => return Err(CryptoErrno::NotImplemented.into()),
+        };
+        Ok(builder)
+    }
+
+    pub fn from_raw(alg: KxAlgorithm, raw: &[u8]) -> CryptoResult<KxSecretKey> {
+        Self::builder(alg)?.from_raw(raw)
+    }
+
+    pub(crate) fn import(
+        alg: KxAlgorithm,
+        encoded: &[u8],
+        encoding: SecretkeyEncoding,
+    ) -> CryptoResult<KxSecretKey> {
+        match encoding {
+            SecretkeyEncoding::Raw => Self::from_raw(alg, encoded),
+            _ => Err(CryptoErrno::UnsupportedEncoding.into()),
+        }
     }
 
     pub(crate) fn as_raw(&self) -> CryptoResult<Vec<u8>> {

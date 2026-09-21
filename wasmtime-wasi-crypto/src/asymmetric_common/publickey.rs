@@ -3,7 +3,7 @@ use crate::{
         AlgorithmType, CryptoErrno, PublickeyEncoding,
     },
     error::CryptoResult,
-    key_exchange::{KxAlgorithm, X25519PublicKeyBuilder, publickey::KxPublicKey},
+    key_exchange::{KxAlgorithm, publickey::KxPublicKey},
     signatures::{SignatureAlgorithm, publickey::SignaturePublicKey},
 };
 use wasmtime::component::Resource;
@@ -44,14 +44,9 @@ impl PublicKey {
             )?)),
             AlgorithmType::KeyExchange => {
                 let alg = KxAlgorithm::try_from(alg_str)?;
-                let builder = match alg {
-                    KxAlgorithm::X25519 => X25519PublicKeyBuilder::new(alg),
-                    KxAlgorithm::MlKem512 | KxAlgorithm::MlKem768 | KxAlgorithm::MlKem1024 => {
-                        return Err(CryptoErrno::NotImplemented.into());
-                    }
-                    KxAlgorithm::XWing => return Err(CryptoErrno::NotImplemented.into()),
-                };
-                Ok(PublicKey::KeyExchange(builder.from_raw(encoded)?))
+                Ok(PublicKey::KeyExchange(KxPublicKey::import(
+                    alg, encoded, encoding,
+                )?))
             }
             _ => Err(CryptoErrno::InvalidOperation.into()),
         }

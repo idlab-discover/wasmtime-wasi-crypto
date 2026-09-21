@@ -15,8 +15,8 @@ use crate::{
         state::SymmetricStateLike,
     },
 };
-use aes_gcm::{AeadInOut, Aes128Gcm, Aes256Gcm, KeyInit};
 use aes_gcm::aead::{Nonce, Tag};
+use aes_gcm::{AeadInOut, Aes128Gcm, Aes256Gcm, KeyInit};
 use derivative::Derivative;
 use std::any::Any;
 
@@ -222,9 +222,7 @@ impl SymmetricStateLike for AesGcmSymmetricState {
             .try_into()
             .expect("nonce is NONCE_LEN bytes; validated in constructor");
         // Tag length comes from the caller; return InvalidTag rather than panicking.
-        let tag: Tag<Aes128Gcm> = raw_tag
-            .try_into()
-            .map_err(|_| CryptoErrno::InvalidTag)?;
+        let tag: Tag<Aes128Gcm> = raw_tag.try_into().map_err(|_| CryptoErrno::InvalidTag)?;
         let mut out = data.to_vec();
         match &self.ctx {
             AesGcmVariant::Aes128(x) => {

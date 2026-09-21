@@ -5,6 +5,10 @@ pub mod publickey;
 pub mod secretkey;
 
 pub use dh::{X25519PublicKeyBuilder, X25519SecretKeyBuilder};
+#[cfg(feature = "pqcrypto")]
+pub use kem::{
+    MlKemPublicKeyBuilder, MlKemSecretKeyBuilder, XWingPublicKeyBuilder, XWingSecretKeyBuilder,
+};
 
 use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno;
 use crate::error::{CryptoError, CryptoResult};

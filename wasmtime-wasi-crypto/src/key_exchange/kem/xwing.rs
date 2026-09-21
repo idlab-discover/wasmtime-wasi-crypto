@@ -10,12 +10,20 @@ use crate::{
         KxAlgorithm, KxOptions,
         kem::EncapsulatedSecret,
         keypair::{KxKeyPair, KxKeyPairBuilder, KxKeyPairLike},
-        publickey::{KxPublicKey, KxPublicKeyLike},
-        secretkey::{KxSecretKey, KxSecretKeyLike},
+        publickey::{KxPublicKey, KxPublicKeyBuilder, KxPublicKeyLike},
+        secretkey::{KxSecretKey, KxSecretKeyBuilder, KxSecretKeyLike},
     },
 };
 use derivative::Derivative;
 use std::any::Any;
+
+/// Encapsulation key: an ML-KEM-768 encapsulation key (1184) followed by an
+/// X25519 public key (32).
+const PK_LEN: usize = 1216;
+
+/// Decapsulation keys are stored and exchanged in their 32-byte seed form,
+/// which is what `DecapsulationKey::as_bytes` returns.
+const SK_LEN: usize = 32;
 
 fn generate() -> (Vec<u8>, Vec<u8>) {
     let (dk, ek) = XWingKem::generate_keypair();
@@ -78,6 +86,42 @@ impl KxKeyPairBuilder for XWingKeyPairBuilder {
             sk: XWingSecretKey { raw: sk_raw },
         };
         Ok(KxKeyPair::new(Box::new(kp)))
+    }
+}
+
+pub struct XWingSecretKeyBuilder;
+
+impl XWingSecretKeyBuilder {
+    pub fn new(_alg: KxAlgorithm) -> Box<dyn KxSecretKeyBuilder> {
+        Box::new(Self)
+    }
+}
+
+impl KxSecretKeyBuilder for XWingSecretKeyBuilder {
+    fn from_raw(&self, raw: &[u8]) -> CryptoResult<KxSecretKey> {
+        if raw.len() != SK_LEN {
+            return Err(CryptoErrno::InvalidKey.into());
+        };
+        let sk = XWingSecretKey { raw: raw.to_vec() };
+        Ok(KxSecretKey::new(Box::new(sk)))
+    }
+}
+
+pub struct XWingPublicKeyBuilder;
+
+impl XWingPublicKeyBuilder {
+    pub fn new(_alg: KxAlgorithm) -> Box<dyn KxPublicKeyBuilder> {
+        Box::new(Self)
+    }
+}
+
+impl KxPublicKeyBuilder for XWingPublicKeyBuilder {
+    fn from_raw(&self, raw: &[u8]) -> CryptoResult<KxPublicKey> {
+        if raw.len() != PK_LEN {
+            return Err(CryptoErrno::InvalidKey.into());
+        };
+        let pk = XWingPublicKey { raw: raw.to_vec() };
+        Ok(KxPublicKey::new(Box::new(pk)))
     }
 }
 
