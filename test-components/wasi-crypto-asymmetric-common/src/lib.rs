@@ -14,10 +14,10 @@ wit_bindgen::generate!({
 #[cfg(test)]
 mod tests {
     use crate::wasi::crypto::wasi_ephemeral_crypto_asymmetric_common::{
-        AlgorithmType, KeypairEncoding, PublickeyEncoding, SecretkeyEncoding, keypair_close,
-        keypair_export, keypair_from_pk_and_sk, keypair_generate, keypair_import,
-        keypair_publickey, keypair_secretkey, publickey_close, publickey_export, publickey_import,
-        publickey_verify, secretkey_close, secretkey_export, secretkey_import,
+        AlgorithmType, KeypairEncoding, PublickeyEncoding, SecretkeyEncoding, keypair_export,
+        keypair_from_pk_and_sk, keypair_generate, keypair_import, keypair_publickey,
+        keypair_secretkey, publickey_export, publickey_import, publickey_verify, secretkey_export,
+        secretkey_import,
     };
     use crate::wasi::crypto::wasi_ephemeral_crypto_common::{CryptoErrno, array_output_pull};
 
@@ -26,13 +26,13 @@ mod tests {
     #[test]
     fn keypair_generate_signatures_ed25519() {
         let kp = keypair_generate(AlgorithmType::Signatures, "Ed25519", None).unwrap();
-        keypair_close(kp).unwrap();
+        drop(kp);
     }
 
     #[test]
     fn keypair_generate_kx_x25519() {
         let kp = keypair_generate(AlgorithmType::KeyExchange, "X25519", None).unwrap();
-        keypair_close(kp).unwrap();
+        drop(kp);
     }
 
     #[test]
@@ -40,7 +40,7 @@ mod tests {
         match keypair_generate(AlgorithmType::Signatures, "__not_a_real_algo__", None) {
             Err(CryptoErrno::UnsupportedAlgorithm) => {}
             Ok(kp) => {
-                keypair_close(kp).unwrap();
+                drop(kp);
                 panic!("should have rejected unknown algorithm");
             }
             Err(e) => panic!("unexpected error: {e:?}"),
@@ -61,8 +61,8 @@ mod tests {
             KeypairEncoding::Raw,
         )
         .unwrap();
-        keypair_close(kp).unwrap();
-        keypair_close(kp2).unwrap();
+        drop(kp);
+        drop(kp2);
     }
 
     #[test]
@@ -75,7 +75,7 @@ mod tests {
         ) {
             Err(CryptoErrno::InvalidKey) => {}
             Ok(kp) => {
-                keypair_close(kp).unwrap();
+                drop(kp);
                 panic!("should have rejected a 3-byte keypair");
             }
             Err(e) => panic!("unexpected error: {e:?}"),
@@ -92,7 +92,7 @@ mod tests {
         ) {
             Err(CryptoErrno::InvalidOperation) | Err(CryptoErrno::NotImplemented) => {}
             Ok(kp) => {
-                keypair_close(kp).unwrap();
+                drop(kp);
                 panic!("keypair_import for KX should not be implemented");
             }
             Err(e) => panic!("unexpected error: {e:?}"),
@@ -105,16 +105,16 @@ mod tests {
     fn keypair_publickey_returns_valid_key() {
         let kp = keypair_generate(AlgorithmType::Signatures, "Ed25519", None).unwrap();
         let pk = keypair_publickey(&kp).unwrap();
-        publickey_close(pk).unwrap();
-        keypair_close(kp).unwrap();
+        drop(pk);
+        drop(kp);
     }
 
     #[test]
     fn keypair_secretkey_returns_valid_key() {
         let kp = keypair_generate(AlgorithmType::KeyExchange, "X25519", None).unwrap();
         let sk = keypair_secretkey(&kp).unwrap();
-        secretkey_close(sk).unwrap();
-        keypair_close(kp).unwrap();
+        drop(sk);
+        drop(kp);
     }
 
     // ── keypair_from_pk_and_sk ────────────────────────────────────────────────
@@ -131,16 +131,16 @@ mod tests {
         match keypair_from_pk_and_sk(&pk_sig, &sk_kx) {
             Err(CryptoErrno::IncompatibleKeys) => {}
             Ok(kp) => {
-                keypair_close(kp).unwrap();
+                drop(kp);
                 panic!("mismatched alg types should return IncompatibleKeys");
             }
             Err(e) => panic!("unexpected error: {e:?}"),
         }
 
-        keypair_close(kp_sig).unwrap();
-        keypair_close(kp_kx).unwrap();
-        publickey_close(pk_sig).unwrap();
-        secretkey_close(sk_kx).unwrap();
+        drop(kp_sig);
+        drop(kp_kx);
+        drop(pk_sig);
+        drop(sk_kx);
     }
 
     #[test]
@@ -152,15 +152,15 @@ mod tests {
         match keypair_from_pk_and_sk(&pk, &sk) {
             Err(CryptoErrno::NotImplemented) => {}
             Ok(kp2) => {
-                keypair_close(kp2).unwrap();
+                drop(kp2);
                 panic!("keypair_from_pk_and_sk should return NotImplemented");
             }
             Err(e) => panic!("unexpected error: {e:?}"),
         }
 
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
-        secretkey_close(sk).unwrap();
+        drop(kp);
+        drop(pk);
+        drop(sk);
     }
 
     // ── publickey_import / publickey_export / publickey_verify ────────────────
@@ -182,9 +182,9 @@ mod tests {
         )
         .unwrap();
 
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
-        publickey_close(pk2).unwrap();
+        drop(kp);
+        drop(pk);
+        drop(pk2);
     }
 
     #[test]
@@ -205,9 +205,9 @@ mod tests {
         .unwrap();
         publickey_verify(&pk2).unwrap();
 
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
-        publickey_close(pk2).unwrap();
+        drop(kp);
+        drop(pk);
+        drop(pk2);
     }
 
     #[test]
@@ -220,7 +220,7 @@ mod tests {
         ) {
             Err(CryptoErrno::InvalidKey) => {}
             Ok(pk) => {
-                publickey_close(pk).unwrap();
+                drop(pk);
                 panic!("should have rejected 5-byte key");
             }
             Err(e) => panic!("unexpected error: {e:?}"),
@@ -237,7 +237,7 @@ mod tests {
         ) {
             Err(CryptoErrno::UnsupportedAlgorithm) => {}
             Ok(pk) => {
-                publickey_close(pk).unwrap();
+                drop(pk);
                 panic!("should have rejected unknown algorithm");
             }
             Err(e) => panic!("unexpected error: {e:?}"),
@@ -255,8 +255,8 @@ mod tests {
             array_output_pull(secretkey_export(&sk, SecretkeyEncoding::Raw).unwrap()).unwrap();
         assert_eq!(raw.len(), 32, "X25519 secret key is 32 bytes");
 
-        keypair_close(kp).unwrap();
-        secretkey_close(sk).unwrap();
+        drop(kp);
+        drop(sk);
     }
 
     #[test]
@@ -274,9 +274,9 @@ mod tests {
         )
         .unwrap();
 
-        secretkey_close(sk).unwrap();
-        secretkey_close(sk2).unwrap();
-        keypair_close(kp).unwrap();
+        drop(sk);
+        drop(sk2);
+        drop(kp);
     }
 
     #[test]
@@ -289,7 +289,7 @@ mod tests {
         ) {
             Err(CryptoErrno::NotImplemented) => {}
             Ok(sk) => {
-                secretkey_close(sk).unwrap();
+                drop(sk);
                 panic!("secretkey_import for Signatures should not be implemented");
             }
             Err(e) => panic!("unexpected error: {e:?}"),
@@ -309,8 +309,8 @@ mod tests {
             KeypairEncoding::Raw,
         )
         .unwrap();
-        keypair_close(kp).unwrap();
-        keypair_close(kp2).unwrap();
+        drop(kp);
+        drop(kp2);
     }
 
     #[test]
@@ -324,8 +324,8 @@ mod tests {
             KeypairEncoding::Raw,
         )
         .unwrap();
-        keypair_close(kp).unwrap();
-        keypair_close(kp2).unwrap();
+        drop(kp);
+        drop(kp2);
     }
 
     // ── publickey_import: ECDSA compressed-point (Raw = compressed SEC1) ──────
@@ -343,9 +343,9 @@ mod tests {
             PublickeyEncoding::Raw,
         )
         .unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
-        publickey_close(pk2).unwrap();
+        drop(kp);
+        drop(pk);
+        drop(pk2);
     }
 
     #[test]
@@ -361,9 +361,9 @@ mod tests {
             PublickeyEncoding::Raw,
         )
         .unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
-        publickey_close(pk2).unwrap();
+        drop(kp);
+        drop(pk);
+        drop(pk2);
     }
 
     // ── Bug regression: publickey_verify for Signatures keys ─────────────────
@@ -375,8 +375,8 @@ mod tests {
         let kp = keypair_generate(AlgorithmType::Signatures, "Ed25519", None).unwrap();
         let pk = keypair_publickey(&kp).unwrap();
         publickey_verify(&pk).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     #[test]
@@ -384,7 +384,7 @@ mod tests {
         let kp = keypair_generate(AlgorithmType::Signatures, "ECDSA_P256_SHA256", None).unwrap();
         let pk = keypair_publickey(&kp).unwrap();
         publickey_verify(&pk).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 }

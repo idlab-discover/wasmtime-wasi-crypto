@@ -14,10 +14,9 @@ wit_bindgen::generate!({
 #[cfg(test)]
 mod tests {
     use crate::wasi::crypto::wasi_ephemeral_crypto_asymmetric_common::{
-        AlgorithmType, KeypairEncoding, PublickeyEncoding, SecretkeyEncoding, keypair_close,
-        keypair_export, keypair_generate, keypair_publickey, keypair_secretkey, publickey_close,
-        publickey_export, publickey_import, publickey_verify, secretkey_close, secretkey_export,
-        secretkey_import,
+        AlgorithmType, KeypairEncoding, PublickeyEncoding, SecretkeyEncoding, keypair_export,
+        keypair_generate, keypair_publickey, keypair_secretkey, publickey_export, publickey_import,
+        publickey_verify, secretkey_export, secretkey_import,
     };
     use crate::wasi::crypto::wasi_ephemeral_crypto_common::{CryptoErrno, array_output_pull};
     use crate::wasi::crypto::wasi_ephemeral_crypto_kx::{kx_decapsulate, kx_dh, kx_encapsulate};
@@ -56,12 +55,12 @@ mod tests {
         assert_eq!(ss1, ss2, "DH shared secrets must be equal");
         assert_eq!(ss1.len(), 32, "X25519 shared secret is 32 bytes");
 
-        keypair_close(kp1).unwrap();
-        keypair_close(kp2).unwrap();
-        publickey_close(pk1).unwrap();
-        publickey_close(pk2).unwrap();
-        secretkey_close(sk1).unwrap();
-        secretkey_close(sk2).unwrap();
+        drop(kp1);
+        drop(kp2);
+        drop(pk1);
+        drop(pk2);
+        drop(sk1);
+        drop(sk2);
     }
 
     #[test]
@@ -73,7 +72,7 @@ mod tests {
         match keypair_generate(AlgorithmType::KeyExchange, "__not_a_real_algo__", None) {
             Err(CryptoErrno::UnsupportedAlgorithm) => {}
             Ok(kp) => {
-                keypair_close(kp).unwrap();
+                drop(kp);
                 panic!("should have rejected unknown algorithm");
             }
             Err(e) => panic!("unexpected error: {e:?}"),
@@ -131,14 +130,14 @@ mod tests {
             "re-imported public key must produce same DH result"
         );
 
-        keypair_close(kp).unwrap();
-        keypair_close(kp3).unwrap();
-        publickey_close(pk).unwrap();
-        publickey_close(pk2).unwrap();
-        publickey_close(pk3).unwrap();
-        secretkey_close(sk).unwrap();
-        secretkey_close(sk2).unwrap();
-        secretkey_close(sk3).unwrap();
+        drop(kp);
+        drop(kp3);
+        drop(pk);
+        drop(pk2);
+        drop(pk3);
+        drop(sk);
+        drop(sk2);
+        drop(sk3);
     }
 
     // ── X25519 public key verification ────────────────────────────────────────
@@ -148,9 +147,9 @@ mod tests {
     fn x25519_publickey_verify_valid_key() {
         let (kp, pk, sk) = generate_kp("X25519");
         publickey_verify(&pk).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
-        secretkey_close(sk).unwrap();
+        drop(kp);
+        drop(pk);
+        drop(sk);
     }
 
     #[test]
@@ -169,7 +168,7 @@ mod tests {
             Ok(()) => panic!("low-order/zero public key should be rejected"),
             Err(e) => panic!("unexpected error: {e:?}"),
         }
-        publickey_close(zero_pk).unwrap();
+        drop(zero_pk);
     }
 
     // ── ML-KEM / X-Wing KEM ───────────────────────────────────────────────────
@@ -201,9 +200,9 @@ mod tests {
         let pk_len = pk_raw.len();
         let sk_len = sk_raw.len();
 
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
-        secretkey_close(sk).unwrap();
+        drop(kp);
+        drop(pk);
+        drop(sk);
 
         (secret, pk_len, sk_len, ct_len, ss_len)
     }
@@ -265,12 +264,12 @@ mod tests {
         let ss_fwd = array_output_pull(kx_dh(&pk2, &sk1).unwrap()).unwrap();
         let ss_rev = array_output_pull(kx_dh(&pk1, &sk2).unwrap()).unwrap();
         assert_eq!(ss_fwd, ss_rev);
-        keypair_close(kp1).unwrap();
-        keypair_close(kp2).unwrap();
-        publickey_close(pk1).unwrap();
-        publickey_close(pk2).unwrap();
-        secretkey_close(sk1).unwrap();
-        secretkey_close(sk2).unwrap();
+        drop(kp1);
+        drop(kp2);
+        drop(pk1);
+        drop(pk2);
+        drop(sk1);
+        drop(sk2);
     }
 
     #[test]
@@ -283,7 +282,7 @@ mod tests {
         ) {
             Err(CryptoErrno::InvalidKey) => {}
             Ok(sk) => {
-                secretkey_close(sk).unwrap();
+                drop(sk);
                 panic!("should have rejected 5-byte secret key");
             }
             Err(e) => panic!("unexpected error: {e:?}"),
@@ -336,11 +335,11 @@ mod tests {
             "{alg}: re-imported pk/sk must produce matching shared secrets"
         );
 
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
-        publickey_close(pk2).unwrap();
-        secretkey_close(sk).unwrap();
-        secretkey_close(sk2).unwrap();
+        drop(kp);
+        drop(pk);
+        drop(pk2);
+        drop(sk);
+        drop(sk2);
     }
 
     #[test]

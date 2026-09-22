@@ -15,13 +15,12 @@ wit_bindgen::generate!({
 #[cfg(test)]
 mod tests {
     use crate::wasi::crypto::wasi_ephemeral_crypto_asymmetric_common::{
-        KeypairEncoding, PublickeyEncoding, keypair_close, keypair_export, keypair_generate,
+        KeypairEncoding, PublickeyEncoding, keypair_export, keypair_generate,
         keypair_generate_managed, keypair_import, keypair_publickey, keypair_store_managed,
-        publickey_close, publickey_export, publickey_import, publickey_verify,
+        publickey_export, publickey_import, publickey_verify,
     };
     use crate::wasi::crypto::wasi_ephemeral_crypto_common::{
-        AlgorithmType, CryptoErrno, SignatureEncoding, array_output_pull, secrets_manager_close,
-        secrets_manager_open,
+        AlgorithmType, CryptoErrno, SignatureEncoding, array_output_pull, secrets_manager_open,
     };
     use crate::wasi::crypto::wasi_ephemeral_crypto_signatures::*;
 
@@ -49,9 +48,9 @@ mod tests {
         let state = signature_state_open(kp).unwrap();
         signature_state_update(&state, msg).unwrap();
         let sig = signature_state_sign(&state).unwrap();
-        signature_state_close(state).unwrap();
+        drop(state);
         let array_out = signature_export(&sig, SignatureEncoding::Raw).unwrap();
-        signature_close(sig).unwrap();
+        drop(sig);
         array_output_pull(array_out).unwrap()
     }
 
@@ -68,8 +67,8 @@ mod tests {
         let state = signature_verification_state_open(pk)?;
         signature_verification_state_update(&state, msg)?;
         signature_verification_state_verify(&state, &sig)?;
-        signature_verification_state_close(state)?;
-        signature_close(sig)?;
+        drop(state);
+        drop(sig);
         Ok(())
     }
 
@@ -80,8 +79,8 @@ mod tests {
         let (kp, pk) = generate_kp("Ed25519");
         let raw_sig = sign(&kp, b"test");
         verify_raw(&pk, b"test", "Ed25519", &raw_sig, SignatureEncoding::Raw).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     #[test]
@@ -99,8 +98,8 @@ mod tests {
             Ok(()) => panic!("wrong message should not verify"),
             Err(e) => panic!("unexpected error: {e:?}"),
         }
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     #[test]
@@ -114,21 +113,21 @@ mod tests {
         let sig1 = signature_state_sign(&state).unwrap();
         let raw1 =
             array_output_pull(signature_export(&sig1, SignatureEncoding::Raw).unwrap()).unwrap();
-        signature_close(sig1).unwrap();
+        drop(sig1);
 
         let sig2 = signature_state_sign(&state).unwrap();
         let raw2 =
             array_output_pull(signature_export(&sig2, SignatureEncoding::Raw).unwrap()).unwrap();
-        signature_close(sig2).unwrap();
+        drop(sig2);
 
         // Ed25519 is deterministic; both calls must return identical bytes.
         assert_eq!(raw1, raw2);
         // And the signature must verify against the original message.
         verify_raw(&pk, b"message", "Ed25519", &raw1, SignatureEncoding::Raw).unwrap();
 
-        signature_state_close(state).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(state);
+        drop(kp);
+        drop(pk);
     }
 
     #[test]
@@ -140,13 +139,13 @@ mod tests {
 
         signature_state_update(&state, b"message").unwrap();
         let sig = signature_state_sign(&state).unwrap();
-        signature_close(sig).unwrap();
+        drop(sig);
 
         let err = signature_state_update(&state, b"more data").unwrap_err();
         assert!(matches!(err, CryptoErrno::UnsupportedFeature));
 
-        signature_state_close(state).unwrap();
-        keypair_close(kp).unwrap();
+        drop(state);
+        drop(kp);
     }
 
     #[test]
@@ -164,10 +163,10 @@ mod tests {
             let sig = signature_state_sign(&state).unwrap();
             let bytes =
                 array_output_pull(signature_export(&sig, SignatureEncoding::Raw).unwrap()).unwrap();
-            signature_close(sig).unwrap();
+            drop(sig);
             bytes
         };
-        signature_state_close(state).unwrap();
+        drop(state);
 
         // Verify incremental signature against the concatenated message.
         verify_raw(
@@ -179,8 +178,8 @@ mod tests {
         )
         .unwrap();
 
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     // ── ECDSA P256 ────────────────────────────────────────────────────────────
@@ -197,8 +196,8 @@ mod tests {
             SignatureEncoding::Raw,
         )
         .unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     #[test]
@@ -233,10 +232,10 @@ mod tests {
         let raw_sig = sign(&kp2, b"test");
         verify_raw(&pk2, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
 
-        keypair_close(kp).unwrap();
-        keypair_close(kp2).unwrap();
-        publickey_close(pk).unwrap();
-        publickey_close(pk2).unwrap();
+        drop(kp);
+        drop(kp2);
+        drop(pk);
+        drop(pk2);
     }
 
     #[test]
@@ -255,11 +254,11 @@ mod tests {
         let state = signature_verification_state_open(&pk).unwrap();
         signature_verification_state_update(&state, b"test").unwrap();
         signature_verification_state_verify(&state, &sig2).unwrap();
-        signature_verification_state_close(state).unwrap();
-        signature_close(sig2).unwrap();
+        drop(state);
+        drop(sig2);
 
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     // ── ECDSA K256 ────────────────────────────────────────────────────────────
@@ -279,8 +278,8 @@ mod tests {
         // Re-import and verify to confirm the 64-byte form is accepted
         verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
 
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     // ── RSA ───────────────────────────────────────────────────────────────────
@@ -293,8 +292,8 @@ mod tests {
         let (kp, pk) = generate_kp(alg);
         let raw_sig = sign(&kp, b"test");
         verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     #[test]
@@ -326,10 +325,10 @@ mod tests {
         let raw_sig = sign(&kp2, b"test");
         verify_raw(&pk2, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
 
-        keypair_close(kp).unwrap();
-        keypair_close(kp2).unwrap();
-        publickey_close(pk).unwrap();
-        publickey_close(pk2).unwrap();
+        drop(kp);
+        drop(kp2);
+        drop(pk);
+        drop(pk2);
     }
 
     // ── signature_import error cases ─────────────────────────────────────────
@@ -341,8 +340,8 @@ mod tests {
             // the host may reject at import or defer to verification.
             Err(CryptoErrno::InvalidSignature) | Err(CryptoErrno::UnsupportedEncoding) => {}
             Ok(sig) => {
-                // Some hosts defer validation to verify time; close and note.
-                signature_close(sig).unwrap();
+                // Some hosts defer validation to verify time; drop and move on.
+                drop(sig);
             }
             Err(e) => panic!("unexpected error for garbage signature: {e:?}"),
         }
@@ -353,7 +352,7 @@ mod tests {
         match signature_import("__not_a_real_algo__", &[0u8; 64], SignatureEncoding::Raw) {
             Err(CryptoErrno::UnsupportedAlgorithm) => {}
             Ok(sig) => {
-                signature_close(sig).unwrap();
+                drop(sig);
                 panic!("should have rejected unknown algorithm");
             }
             Err(e) => panic!("unexpected error: {e:?}"),
@@ -380,9 +379,9 @@ mod tests {
         )
         .unwrap();
 
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
-        secrets_manager_close(sm).unwrap();
+        drop(kp);
+        drop(pk);
+        drop(sm);
     }
 
     // ── ECDSA P384 ────────────────────────────────────────────────────────────
@@ -399,8 +398,8 @@ mod tests {
             SignatureEncoding::Raw,
         )
         .unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     #[test]
@@ -420,8 +419,8 @@ mod tests {
             SignatureEncoding::Raw,
         )
         .unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     #[test]
@@ -451,10 +450,10 @@ mod tests {
         let raw_sig = sign(&kp2, b"test");
         verify_raw(&pk2, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
 
-        keypair_close(kp).unwrap();
-        keypair_close(kp2).unwrap();
-        publickey_close(pk).unwrap();
-        publickey_close(pk2).unwrap();
+        drop(kp);
+        drop(kp2);
+        drop(pk);
+        drop(pk2);
     }
 
     #[test]
@@ -472,8 +471,8 @@ mod tests {
             Ok(()) => panic!("wrong message should not verify"),
             Err(e) => panic!("unexpected error: {e:?}"),
         }
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     #[test]
@@ -491,8 +490,8 @@ mod tests {
             Ok(()) => panic!("wrong message should not verify"),
             Err(e) => panic!("unexpected error: {e:?}"),
         }
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     // ── RSA PKCS#1 additional variants ───────────────────────────────────────
@@ -503,8 +502,8 @@ mod tests {
         let (kp, pk) = generate_kp(alg);
         let raw_sig = sign(&kp, b"test");
         verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     #[test]
@@ -513,8 +512,8 @@ mod tests {
         let (kp, pk) = generate_kp(alg);
         let raw_sig = sign(&kp, b"test");
         verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     #[test]
@@ -523,8 +522,8 @@ mod tests {
         let (kp, pk) = generate_kp(alg);
         let raw_sig = sign(&kp, b"test");
         verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     #[test]
@@ -533,8 +532,8 @@ mod tests {
         let (kp, pk) = generate_kp(alg);
         let raw_sig = sign(&kp, b"test");
         verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     #[test]
@@ -543,8 +542,8 @@ mod tests {
         let (kp, pk) = generate_kp(alg);
         let raw_sig = sign(&kp, b"test");
         verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     // ── RSA PSS variants ──────────────────────────────────────────────────────
@@ -555,8 +554,8 @@ mod tests {
         let (kp, pk) = generate_kp(alg);
         let raw_sig = sign(&kp, b"test");
         verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     #[test]
@@ -565,8 +564,8 @@ mod tests {
         let (kp, pk) = generate_kp(alg);
         let raw_sig = sign(&kp, b"test");
         verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     #[test]
@@ -575,8 +574,8 @@ mod tests {
         let (kp, pk) = generate_kp(alg);
         let raw_sig = sign(&kp, b"test");
         verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     #[test]
@@ -585,8 +584,8 @@ mod tests {
         let (kp, pk) = generate_kp(alg);
         let raw_sig = sign(&kp, b"test");
         verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     #[test]
@@ -595,8 +594,8 @@ mod tests {
         let (kp, pk) = generate_kp(alg);
         let raw_sig = sign(&kp, b"test");
         verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     #[test]
@@ -605,8 +604,8 @@ mod tests {
         let (kp, pk) = generate_kp(alg);
         let raw_sig = sign(&kp, b"test");
         verify_raw(&pk, b"test", alg, &raw_sig, SignatureEncoding::Raw).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(kp);
+        drop(pk);
     }
 
     // ── Bug regression: publickey_verify was always NotImplemented ────────────
@@ -628,8 +627,8 @@ mod tests {
             publickey_verify(&pk).unwrap_or_else(|e| {
                 panic!("publickey_verify({alg}) returned {e:?}, expected Ok(())")
             });
-            keypair_close(kp).unwrap();
-            publickey_close(pk).unwrap();
+            drop(kp);
+            drop(pk);
         }
     }
 
@@ -637,10 +636,6 @@ mod tests {
 
     #[test]
     fn signature_verify_consumes_signature_handle() {
-        // signature_verification_state_verify takes plain `signature` (owned),
-        // meaning the host must consume (delete) the handle. If it leaks, repeated
-        // calls would fill the resource table. Verify the handle is gone by ensuring
-        // signature_close on it after verify fails with an appropriate error.
         let (kp, pk) = generate_kp("Ed25519");
         let raw_sig = sign(&kp, b"test");
 
@@ -648,10 +643,10 @@ mod tests {
         let state = signature_verification_state_open(&pk).unwrap();
         signature_verification_state_update(&state, b"test").unwrap();
         signature_verification_state_verify(&state, &sig).unwrap();
-        signature_verification_state_close(state).unwrap();
-        signature_close(sig).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(state);
+        drop(sig);
+        drop(kp);
+        drop(pk);
     }
 
     // ── Bug regression: signature_export encoding parameter ──────────────────
@@ -665,7 +660,7 @@ mod tests {
         let state = signature_state_open(&kp).unwrap();
         signature_state_update(&state, b"test").unwrap();
         let sig = signature_state_sign(&state).unwrap();
-        signature_state_close(state).unwrap();
+        drop(state);
 
         let raw_bytes =
             array_output_pull(signature_export(&sig, SignatureEncoding::Raw).unwrap()).unwrap();
@@ -680,12 +675,12 @@ mod tests {
         let vstate = signature_verification_state_open(&pk).unwrap();
         signature_verification_state_update(&vstate, b"test").unwrap();
         signature_verification_state_verify(&vstate, &sig2).unwrap();
-        signature_verification_state_close(vstate).unwrap();
-        signature_close(sig2).unwrap();
+        drop(vstate);
+        drop(sig2);
 
-        signature_close(sig).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(sig);
+        drop(kp);
+        drop(pk);
     }
 
     // ── Bug regression: RSA sign() state reuse ───────────────────────────────
@@ -703,21 +698,21 @@ mod tests {
         let sig1 = signature_state_sign(&state).unwrap();
         let raw1 =
             array_output_pull(signature_export(&sig1, SignatureEncoding::Raw).unwrap()).unwrap();
-        signature_close(sig1).unwrap();
+        drop(sig1);
 
         // Second sign cycle on the same state handle
         signature_state_update(&state, b"second message").unwrap();
         let sig2 = signature_state_sign(&state).unwrap();
         let raw2 =
             array_output_pull(signature_export(&sig2, SignatureEncoding::Raw).unwrap()).unwrap();
-        signature_close(sig2).unwrap();
+        drop(sig2);
 
         // Both must verify
         verify_raw(&pk, b"first message", alg, &raw1, SignatureEncoding::Raw).unwrap();
         verify_raw(&pk, b"second message", alg, &raw2, SignatureEncoding::Raw).unwrap();
 
-        signature_state_close(state).unwrap();
-        keypair_close(kp).unwrap();
-        publickey_close(pk).unwrap();
+        drop(state);
+        drop(kp);
+        drop(pk);
     }
 }

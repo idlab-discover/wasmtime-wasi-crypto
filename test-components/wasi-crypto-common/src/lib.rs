@@ -17,21 +17,21 @@ mod tests {
     use crate::wasi::crypto::wasi_ephemeral_crypto_common::*;
 
     #[test]
-    fn options_open_close_symmetric() {
+    fn options_open_drop_symmetric() {
         let opts = options_open(AlgorithmType::Symmetric).unwrap();
-        options_close(opts).unwrap();
+        drop(opts);
     }
 
     #[test]
-    fn options_open_close_signatures() {
+    fn options_open_drop_signatures() {
         let opts = options_open(AlgorithmType::Signatures).unwrap();
-        options_close(opts).unwrap();
+        drop(opts);
     }
 
     #[test]
-    fn options_open_close_key_exchange() {
+    fn options_open_drop_key_exchange() {
         let opts = options_open(AlgorithmType::KeyExchange).unwrap();
-        options_close(opts).unwrap();
+        drop(opts);
     }
 
     #[test]
@@ -41,7 +41,7 @@ mod tests {
             Ok(()) | Err(CryptoErrno::UnsupportedOption) => {}
             Err(e) => panic!("unexpected error: {e:?}"),
         }
-        options_close(opts).unwrap();
+        drop(opts);
     }
 
     #[test]
@@ -51,7 +51,7 @@ mod tests {
             Ok(()) | Err(CryptoErrno::UnsupportedOption) => {}
             Err(e) => panic!("unexpected error: {e:?}"),
         }
-        options_close(opts).unwrap();
+        drop(opts);
     }
 
     #[test]
@@ -62,14 +62,14 @@ mod tests {
             Ok(()) => panic!("host accepted garbage option name"),
             Err(e) => panic!("unexpected error: {e:?}"),
         }
-        options_close(opts).unwrap();
+        drop(opts);
     }
 
     #[test]
     #[should_panic] // TODO: this is the same as the WITX version, but should probably be implemented down the line
-    fn secrets_manager_open_close() {
+    fn secrets_manager_open_drop() {
         let sm = secrets_manager_open(None).unwrap();
-        secrets_manager_close(sm).unwrap();
+        drop(sm);
     }
 
     #[test]
@@ -81,7 +81,7 @@ mod tests {
             Ok(()) => panic!("invalidating nonexistent key should return not-found"),
             Err(e) => panic!("unexpected error: {e:?}"),
         }
-        secrets_manager_close(sm).unwrap();
+        drop(sm);
     }
 
     #[test]
@@ -93,6 +93,6 @@ mod tests {
             Ok(()) => panic!("invalidating nonexistent key should return not-found"),
             Err(e) => panic!("unexpected error: {e:?}"),
         }
-        secrets_manager_close(sm).unwrap();
+        drop(sm);
     }
 }

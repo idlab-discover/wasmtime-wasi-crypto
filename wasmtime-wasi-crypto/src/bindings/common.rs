@@ -71,7 +71,8 @@ impl HostSecretsManager for crate::crypto::WasiCryptoCtxView<'_> {
 }
 impl HostOptions for crate::crypto::WasiCryptoCtxView<'_> {
     fn drop(&mut self, rep: wasmtime::component::Resource<Options>) -> wasmtime::Result<()> {
-        Ok(self.options_close(rep)?)
+        self.table.delete(rep)?;
+        Ok(())
     }
 }
 impl HostArrayOutput for crate::crypto::WasiCryptoCtxView<'_> {
@@ -96,7 +97,6 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     #[doc = "/ options_set(options_handle, \"context\", context)?;"]
     #[doc = "/ options_set_u64(options_handle, \"threads\", 4)?;"]
     #[doc = "/ let state = symmetric_state_open(\"BLAKE3\", None, Some(options_handle))?;"]
-    #[doc = "/ options_close(options_handle)?;"]
     #[doc = "/ ```"]
     fn options_open(
         &mut self,
@@ -111,15 +111,6 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         let handle = self.table.push(options)?;
 
         Ok(handle)
-    }
-
-    #[doc = "/ Destroy an options object."]
-    fn options_close(
-        &mut self,
-        options: wasmtime::component::Resource<Options>,
-    ) -> CryptoResult<()> {
-        let _options: Options = self.table.delete(options)?;
-        Ok(())
     }
 
     #[doc = "/ Set or update an option."]
@@ -219,18 +210,6 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         &mut self,
         options: Option<wasmtime::component::Resource<Options>>,
     ) -> CryptoResult<wasmtime::component::Resource<SecretsManager>> {
-        Err(CryptoErrno::UnsupportedFeature.into())
-    }
-
-    #[doc = "/ __(optional)__"]
-    #[doc = "/ Destroy a secrets manager context."]
-    #[doc = "/ "]
-    #[doc = "/ The function returns the `unsupported_feature` error code if secrets management facilities are not supported by the host."]
-    #[doc = "/ This is also an optional import, meaning that the function may not even exist."]
-    fn secrets_manager_close(
-        &mut self,
-        secrets_manager: wasmtime::component::Resource<SecretsManager>,
-    ) -> CryptoResult<()> {
         Err(CryptoErrno::UnsupportedFeature.into())
     }
 
