@@ -3,4 +3,5 @@
 	url = git@github.com:idlab-discover/wasi-crypto.git
 [submodule "spec"]
 	path = spec
-	url = git@github.com:WebAssembly/wasi-crypto.git
+	url = git@github.com:idlab-discover/wasi-crypto.git
+	branch = remove-close
