@@ -209,17 +209,6 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         Ok(handle)
     }
 
-    #[doc = "/ Destroy a key pair."]
-    #[doc = "/ "]
-    #[doc = "/ The host will automatically wipe traces of the secret key from memory."]
-    #[doc = "/ "]
-    #[doc = "/ If this is a managed key, the key will not be removed from persistent storage, and can be reconstructed later using the key identifier."]
-    fn keypair_close(&mut self, kp: wasmtime::component::Resource<Keypair>) -> CryptoResult<()> {
-        debug_assert!(kp.owned());
-        let _kp: Keypair = self.table.delete(kp)?;
-        Ok(())
-    }
-
     #[doc = "/ Import a public key."]
     #[doc = "/ "]
     #[doc = "/ The function may return `unsupported_encoding` if importing from the given format is not implemented or incompatible with the key type."]
@@ -281,18 +270,6 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         Err(CryptoErrno::UnsupportedFeature.into())
     }
 
-    #[doc = "/ Destroy a public key."]
-    #[doc = "/ "]
-    #[doc = "/ Objects are reference counted. It is safe to close an object immediately after the last function needing it is called."]
-    fn publickey_close(
-        &mut self,
-        pk: wasmtime::component::Resource<Publickey>,
-    ) -> CryptoResult<()> {
-        debug_assert!(pk.owned());
-        let _pk: Publickey = self.table.delete(pk)?;
-        Ok(())
-    }
-
     #[doc = "/ Import a secret key."]
     #[doc = "/ "]
     #[doc = "/ The function may return `unsupported_encoding` if importing from the given format is not implemented or incompatible with the key type."]
@@ -330,17 +307,5 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         let encoded = sk.export(encoding)?;
         let array_output_handle = ArrayOutput::register(self.table, encoded)?;
         Ok(array_output_handle)
-    }
-
-    #[doc = "/ Destroy a secret key."]
-    #[doc = "/ "]
-    #[doc = "/ Objects are reference counted. It is safe to close an object immediately after the last function needing it is called."]
-    fn secretkey_close(
-        &mut self,
-        sk: wasmtime::component::Resource<Secretkey>,
-    ) -> CryptoResult<()> {
-        debug_assert!(sk.owned());
-        let _sk: Secretkey = self.table.delete(sk)?;
-        Ok(())
     }
 }

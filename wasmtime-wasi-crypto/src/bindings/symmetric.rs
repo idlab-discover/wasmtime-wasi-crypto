@@ -63,18 +63,6 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         Ok(array_output_handle)
     }
 
-    #[doc = "/ Destroy a symmetric key."]
-    #[doc = "/ "]
-    #[doc = "/ Objects are reference counted. It is safe to close an object immediately after the last function needing it is called."]
-    fn symmetric_key_close(
-        &mut self,
-        symmetric_key: wasmtime::component::Resource<SymmetricKey>,
-    ) -> CryptoResult<()> {
-        debug_assert!(symmetric_key.owned());
-        let _options: SymmetricKey = self.table.delete(symmetric_key)?;
-        Ok(())
-    }
-
     #[doc = "/ __(optional)__"]
     #[doc = "/ Generate a new managed symmetric key."]
     #[doc = "/ "]
@@ -418,18 +406,6 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         Ok(handle)
     }
 
-    #[doc = "/ Destroy a symmetric state."]
-    #[doc = "/ "]
-    #[doc = "/ Objects are reference counted. It is safe to close an object immediately after the last function needing it is called."]
-    fn symmetric_state_close(
-        &mut self,
-        state: wasmtime::component::Resource<SymmetricState>,
-    ) -> CryptoResult<()> {
-        debug_assert!(state.owned());
-        let _state: SymmetricState = self.table.delete(state)?;
-        Ok(())
-    }
-
     #[doc = "/ Absorb data into the state."]
     #[doc = "/ "]
     #[doc = "/ - **Hash functions:** adds data to be hashed."]
@@ -672,20 +648,6 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     ) -> CryptoResult<()> {
         let symmetric_tag = self.table.get(&symmetric_tag)?;
         symmetric_tag.verify(&expected_raw_tag)?;
-        Ok(())
-    }
-
-    #[doc = "/ Explicitly destroy an unused authentication tag."]
-    #[doc = "/ "]
-    #[doc = "/ This is usually not necessary, as `symmetric_tag_pull()` automatically closes a tag after it has been copied."]
-    #[doc = "/ "]
-    #[doc = "/ Objects are reference counted. It is safe to close an object immediately after the last function needing it is called."]
-    fn symmetric_tag_close(
-        &mut self,
-        symmetric_tag: wasmtime::component::Resource<SymmetricTag>,
-    ) -> CryptoResult<()> {
-        debug_assert!(symmetric_tag.owned());
-        let _symmetric_tag: SymmetricTag = self.table.delete(symmetric_tag)?;
         Ok(())
     }
 }

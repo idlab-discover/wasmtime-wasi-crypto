@@ -142,7 +142,7 @@ Implements options lifecycle, `array_output`, and `secrets_manager`.
 
 ### `secrets_manager`
 
-All three functions (`secrets_manager_open`, `secrets_manager_close`, `secrets_manager_invalidate`) return `CryptoErrno::UnsupportedFeature`. `SecretsManager` has no backing Rust type and is not mapped in `bindgen!`. This mirrors the WITX reference implementation.
+Both functions (`secrets_manager_open`, `secrets_manager_invalidate`) return `CryptoErrno::UnsupportedFeature`. `SecretsManager` has no backing Rust type and is not mapped in `bindgen!`. This mirrors the WITX reference implementation.
 
 ---
 

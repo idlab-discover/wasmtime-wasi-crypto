@@ -102,20 +102,6 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         Ok(handle)
     }
 
-    #[doc = "/ Destroy a signature state."]
-    #[doc = "/ "]
-    #[doc = "/ Objects are reference counted. It is safe to close an object immediately after the last function needing it is called."]
-    #[doc = "/ "]
-    #[doc = "/ Note that closing a signature state doesn\'t close or invalidate the key pair object, that can be reused for further signatures."]
-    fn signature_state_close(
-        &mut self,
-        state: wasmtime::component::Resource<SignatureState>,
-    ) -> CryptoResult<()> {
-        debug_assert!(state.owned());
-        let _state: SignatureState = self.table.delete(state)?;
-        Ok(())
-    }
-
     #[doc = "/ Create a new state to collect data to verify a signature on."]
     #[doc = "/ "]
     #[doc = "/ This is the verification counterpart of `signature_state`."]
@@ -164,30 +150,6 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         let state = self.table.get(&state)?;
         let signature = self.table.get(&signature)?;
         state.locked(|state| state.verify(signature))?;
-        Ok(())
-    }
-
-    #[doc = "/ Destroy a signature verification state."]
-    #[doc = "/ "]
-    #[doc = "/ Objects are reference counted. It is safe to close an object immediately after the last function needing it is called."]
-    #[doc = "/ "]
-    #[doc = "/ Note that closing a signature state doesn\'t close or invalidate the public key object, that can be reused for further verifications."]
-    fn signature_verification_state_close(
-        &mut self,
-        state: wasmtime::component::Resource<SignatureVerificationState>,
-    ) -> CryptoResult<()> {
-        debug_assert!(state.owned());
-        let _state: SignatureVerificationState = self.table.delete(state)?;
-        Ok(())
-    }
-
-    #[doc = "/ Destroy a signature."]
-    fn signature_close(
-        &mut self,
-        signature: wasmtime::component::Resource<Signature>,
-    ) -> CryptoResult<()> {
-        debug_assert!(signature.owned());
-        let _signature: Signature = self.table.delete(signature)?;
         Ok(())
     }
 }
