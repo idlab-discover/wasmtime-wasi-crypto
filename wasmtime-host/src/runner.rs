@@ -60,6 +60,13 @@ pub async fn run_each(component: &Path, test_args: Vec<String>) -> anyhow::Resul
     let test_names = list_tests(&engine, &linker, &component_obj).await?;
     let rt_handle = tokio::runtime::Handle::current();
 
+    // Parse the runner's own arguments up front, because `--nocapture` decides
+    // what each trial does with the guest output it captured.
+    let mut mimic_args = vec!["wasmtime-test-runner".to_string()];
+    mimic_args.extend(test_args);
+    let args = Arguments::parse_from(mimic_args);
+    let nocapture = args.nocapture;
+
     let trials = test_names
         .into_iter()
         .map(|name| {
@@ -72,14 +79,18 @@ pub async fn run_each(component: &Path, test_args: Vec<String>) -> anyhow::Resul
             // Each trial gets its own explicit runner logic closure
             Trial::test(name, move || {
                 rt_handle_clone.block_on(async move {
+                    // The pipes are shared handles: the guest writes through
+                    // one clone while we keep the other to show its output
+                    // afterwards.
                     let stdout = MemoryOutputPipe::new(usize::MAX);
                     let stderr = MemoryOutputPipe::new(usize::MAX);
+                    let (guest_stdout, guest_stderr) = (stdout.clone(), stderr.clone());
 
                     // Isolate execution inside a spawned task to catch host-side `todo!()` panics cleanly
                     let handle = tokio::spawn(async move {
                         let wasi_ctx = WasiCtxBuilder::new()
-                            .stdout(stdout.clone())
-                            .stderr(stderr.clone())
+                            .stdout(guest_stdout)
+                            .stderr(guest_stderr)
                             .inherit_env()
                             .args(&["--", "--exact", &test_name, "--nocapture"])
                             .build();
@@ -106,32 +117,55 @@ pub async fn run_each(component: &Path, test_args: Vec<String>) -> anyhow::Resul
                         }
                     });
 
-                    match handle.await {
+                    let outcome = match handle.await {
                         Ok(Ok(Ok(()))) => Ok(()),
-                        Ok(Ok(Err(()))) => {
-                            Err(Failed::from("Test failed inside Wasm guest harness"))
-                        }
-                        Ok(Err(e)) => Err(Failed::from(format!("Wasmtime engine error: {e:#}"))),
+                        Ok(Ok(Err(()))) => Err("Test failed inside Wasm guest harness".to_string()),
+                        Ok(Err(e)) => Err(format!("Wasmtime engine error: {e:#}")),
                         Err(join_error) => {
                             if join_error.is_panic() {
-                                Err(Failed::from(
-                                    "Host implementation feature not yet implemented (todo!())",
-                                ))
+                                Err("Host implementation feature not yet implemented (todo!())"
+                                    .to_string())
                             } else {
-                                Err(Failed::from("Test execution task was aborted or cancelled"))
+                                Err("Test execution task was aborted or cancelled".to_string())
                             }
                         }
+                    };
+
+                    // A failure always carries the guest's output, since that
+                    // is where its panic message and backtrace end up. Passing
+                    // tests only show it when asked to, like libtest does.
+                    let output = captured_output(&stdout, &stderr);
+                    match outcome {
+                        Ok(()) => {
+                            if nocapture {
+                                eprint!("{output}");
+                            }
+                            Ok(())
+                        }
+                        Err(reason) => Err(Failed::from(format!("{reason}\n{output}"))),
                     }
                 })
             })
         })
         .collect::<Vec<_>>();
 
-    // Combine a dummy binary name with the passed CLI arguments
-    let mut mimic_args = vec!["wasmtime-test-runner".to_string()];
-    mimic_args.extend(test_args);
-
-    let args = Arguments::parse_from(mimic_args);
-
     libtest_mimic::run(&args, trials).exit();
+}
+
+/// Formats a guest's captured stdout and stderr for display, leaving out any
+/// stream that stayed empty.
+fn captured_output(stdout: &MemoryOutputPipe, stderr: &MemoryOutputPipe) -> String {
+    let mut output = String::new();
+    for (label, pipe) in [("stdout", stdout), ("stderr", stderr)] {
+        let contents = pipe.contents();
+        if contents.is_empty() {
+            continue;
+        }
+        output.push_str(&format!("---- guest {label} ----\n"));
+        output.push_str(&String::from_utf8_lossy(&contents));
+        if !output.ends_with('\n') {
+            output.push('\n');
+        }
+    }
+    output
 }

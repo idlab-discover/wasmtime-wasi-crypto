@@ -59,11 +59,20 @@ pub fn make_store(engine: &Engine, wasi_args: &[&str]) -> Store<HostState> {
     )
 }
 
-/// Run a wasm component at `path`, forwarding `wasi_args` as WASI argv.
+/// Run a wasm component at `path`, forwarding `wasi_args` as the arguments
+/// after the program name.
 pub async fn run_component(path: &Path, wasi_args: &[&str]) -> anyhow::Result<()> {
     let engine = Engine::default();
     let linker = make_linker(&engine)?;
-    let mut store = make_store(&engine, wasi_args);
+
+    // Guests treat argv[0] as the program name and skip it, so supply the
+    // component path there (as the wasmtime CLI does). Otherwise the guest
+    // would silently drop the first user-supplied argument.
+    let program_name = path.to_string_lossy();
+    let argv: Vec<&str> = std::iter::once(program_name.as_ref())
+        .chain(wasi_args.iter().copied())
+        .collect();
+    let mut store = make_store(&engine, &argv);
 
     let component =
         Component::from_file(&engine, path).context("Failed to load WebAssembly component")?;
