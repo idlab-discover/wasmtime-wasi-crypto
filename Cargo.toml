@@ -8,6 +8,7 @@ members = [
   "test-components/wasi-crypto-signatures",
   "test-components/wasi-crypto-kx",
   "test-components/wasi-crypto-asymmetric-common",
+  "test-components/wasi-crypto-in-place",
 ]
 
 default-members = ["wasmtime-wasi-crypto", "wasmtime-host"]
