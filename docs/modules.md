@@ -163,7 +163,7 @@ All functions return `CryptoErrno::UnsupportedFeature`. This interface is fully 
 | `wasi-ephemeral-crypto-signatures`        | `wasi-crypto-signatures`        | Partial | Ed25519, ECDSA P256/K256/P384, RSA PKCS1/PSS covered; managed keypairs `#[should_panic]`                                                                             |
 | `wasi-ephemeral-crypto-kx`                | `wasi-crypto-kx`                | Partial | X25519 DH, keypair/key round-trips, low-order point rejection covered; Kyber KEM `#[should_panic]`                                                                   |
 | `wasi-ephemeral-crypto-asymmetric-common` | `wasi-crypto-asymmetric-common` | Partial | keypair/publickey/secretkey lifecycle across Ed25519, ECDSA P256/P384, X25519; `keypair_from_pk_and_sk` expects `NotImplemented`; managed keypairs `#[should_panic]` |
-| `wasi-ephemeral-crypto-symmetric`         | `wasi-crypto-in-place`          | Partial | guest-memory regression tests: plain encrypt/decrypt (AEADs, Xoodyak) allocate a separate output buffer, measured via `allocation-counter` and `memory.size`; in-place tests pending |
+| `wasi-ephemeral-crypto-symmetric`         | `wasi-crypto-in-place`          | Partial | guest-memory regression tests: plain encrypt/decrypt (AEADs, Xoodyak) allocate a separate output buffer, measured via `allocation-counter` and `memory.size`; `in_place` helpers write the result over the input with no guest allocation or memory growth |
 | `wasi-ephemeral-crypto-external-secrets`  | /                               | Missing | not yet written                                                                                                                                                      |
 
 **Test behavior:**
