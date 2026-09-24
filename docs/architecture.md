@@ -67,8 +67,10 @@ The four encryption functions (`symmetric-state-encrypt`, `-encrypt-detached`, `
 | `decrypt`            | 0                              | The tag is split off the end, and the rest is decrypted in place.       |
 | `decrypt-detached`   | 0                              | The input buffer is decrypted in place.                                 |
 
+Besides these, a few tag-sized allocations remain: the buffer inside the `SymmetricTag` that both encrypt variants produce, and the tag that `decrypt` splits off its input.
+
 The tag for `encrypt` is reserved only after encrypting, so the buffer freed by that reallocation holds ciphertext, not plaintext. Avoiding the reallocation altogether would require allocating the output while lifting the guest's list (for example by receiving a `WasmList<u8>`), which `bindgen!` does not do.
 
 On any failure after the buffer has been modified, and on every failed decryption, the buffer is zeroized before the error is returned. AES-GCM and ChaCha20-Poly1305 verify the tag before decrypting, so a failed decryption never produces plaintext; Xoodyak decrypts before it can verify, and its buffer is zeroized on mismatch.
 
-These numbers are for the host only. Crossing the component boundary still copies the input into the host and the output back into guest memory. The native tests in `symmetric/tests.rs` pin the output bytes of every AEAD (as `insta` snapshots) and assert the allocation counts above.
+These numbers are for the host only. Crossing the component boundary still copies the input into the host and the output back into guest memory. The native tests in `symmetric/tests.rs` pin the output bytes of every AEAD (as `insta` snapshots) and assert the exact number of bytes each operation allocates, including the tag-sized allocations.

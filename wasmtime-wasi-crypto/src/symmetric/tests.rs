@@ -15,7 +15,7 @@
 // Every operation opens a fresh state, because the AEAD states consume their
 // nonce on encryption and Xoodyak's duplex state advances with every call.
 
-use super::{SymmetricKey, SymmetricOptions, SymmetricState};
+use super::{SymmetricKey, SymmetricOptions, SymmetricState, SymmetricTag};
 use crate::{
     bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno, error::CryptoResult,
     limits::Limits, options::OptionsLike,
@@ -80,9 +80,11 @@ fn encrypt(state: &SymmetricState, message: Vec<u8>) -> CryptoResult<Vec<u8>> {
     state.inner().encrypt(message)
 }
 
-fn encrypt_detached(state: &SymmetricState, message: Vec<u8>) -> CryptoResult<(Vec<u8>, Vec<u8>)> {
-    let (ciphertext, tag) = state.inner().encrypt_detached(message)?;
-    Ok((ciphertext, tag.as_ref().to_vec()))
+fn encrypt_detached(
+    state: &SymmetricState,
+    message: Vec<u8>,
+) -> CryptoResult<(Vec<u8>, SymmetricTag)> {
+    state.inner().encrypt_detached(message)
 }
 
 fn decrypt(
@@ -129,6 +131,7 @@ fn known_answer(case: &Case) -> KnownAnswer {
     // Detached encryption must produce the same bytes, just split in two.
     let (detached_ciphertext, detached_tag) =
         encrypt_detached(&open(case), MESSAGE.to_vec()).expect("detached encryption succeeds");
+    let detached_tag = detached_tag.as_ref().to_vec();
     assert_eq!(detached_ciphertext, ciphertext_and_tag[..MESSAGE.len()]);
     assert_eq!(detached_tag, ciphertext_and_tag[MESSAGE.len()..]);
 
@@ -262,12 +265,44 @@ use allocation_counter::AllocationInfo;
 
 const LARGE_LEN: usize = 1 << 20;
 
-/// How many message-sized buffers each operation is expected to allocate.
-struct ExpectedCopies {
-    encrypt: u64,
-    encrypt_detached: u64,
-    decrypt: u64,
-    decrypt_detached: u64,
+/// The exact number of bytes one operation is expected to allocate, split
+/// into message-sized and tag-sized parts. Expressing it this way, rather than
+/// rounding to whole messages, also catches a stray small allocation.
+#[derive(Clone, Copy)]
+struct Bytes {
+    messages: u64,
+    tags: u64,
+}
+
+impl Bytes {
+    fn total(self, tag_len: usize) -> u64 {
+        self.messages * LARGE_LEN as u64 + self.tags * tag_len as u64
+    }
+}
+
+/// Formats as e.g. "1 message + 2 tags", "1 tag" or "nothing".
+impl std::fmt::Display for Bytes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let plural = |n: u64| if n == 1 { "" } else { "s" };
+        let parts: Vec<String> = [(self.messages, "message"), (self.tags, "tag")]
+            .into_iter()
+            .filter(|&(n, _)| n > 0)
+            .map(|(n, unit)| format!("{n} {unit}{}", plural(n)))
+            .collect();
+        if parts.is_empty() {
+            f.pad("nothing")
+        } else {
+            f.pad(&parts.join(" + "))
+        }
+    }
+}
+
+/// What each operation is expected to allocate.
+struct ExpectedAllocations {
+    encrypt: Bytes,
+    encrypt_detached: Bytes,
+    decrypt: Bytes,
+    decrypt_detached: Bytes,
 }
 
 /// Builds an input `Vec` the way Wasmtime's lift does.
@@ -285,63 +320,116 @@ fn measure<R>(f: impl FnOnce() -> R) -> (R, AllocationInfo) {
     (result.expect("measure always runs the closure"), info)
 }
 
-/// Prints one measurement and checks its number of message-sized copies. The
-/// tag and other small allocations stay well below [`LARGE_LEN`] and so round
-/// away in the division.
-fn check_copies(case: &Case, operation: &str, info: &AllocationInfo, expected: u64) {
-    let copies = info.bytes_total / LARGE_LEN as u64;
-    eprintln!(
-        "{:<18} {:<16} message-sized copies: {copies} \
-         ({} bytes in {} allocations, peak {} bytes, message {LARGE_LEN} bytes)",
-        case.alg, operation, info.bytes_total, info.count_total, info.bytes_max,
+/// Prints one table of all measurements for `case`, then checks that each
+/// operation allocated exactly the expected number of bytes.
+///
+/// The table goes out in a single `eprint!`, which holds the stderr lock for
+/// the whole write, so tables from tests running in parallel don't interleave.
+/// Printing before asserting means a failing test still shows every row.
+fn report(case: &Case, tag_len: usize, rows: &[(&str, AllocationInfo, Bytes)]) {
+    let mut table = format!(
+        "\n{} (message {LARGE_LEN} bytes, tag {tag_len} bytes)\n  \
+         {:<16}  {:>9}  {:>6}  {:>9}  {:>9}  {}\n",
+        case.alg, "operation", "bytes", "allocs", "peak", "expected", "expected as",
     );
-    assert_eq!(
-        copies, expected,
-        "{} {operation} allocated {} bytes",
-        case.alg, info.bytes_total
-    );
+    for (operation, info, expected) in rows {
+        table += &format!(
+            "  {operation:<16}  {:>9}  {:>6}  {:>9}  {:>9}  {expected}\n",
+            info.bytes_total,
+            info.count_total,
+            info.bytes_max,
+            expected.total(tag_len),
+        );
+    }
+    eprint!("{table}");
+
+    for (operation, info, expected) in rows {
+        assert_eq!(
+            info.bytes_total,
+            expected.total(tag_len),
+            "{} {operation}: expected {expected}",
+            case.alg,
+        );
+    }
 }
 
 /// Measures all four operations on a [`LARGE_LEN`]-byte message. Only the
-/// operation itself runs inside the measurement: opening the state and
-/// building the lifted input happen before it.
-fn measure_allocations(case: &Case, expected: ExpectedCopies) {
+/// operation itself runs inside the measurement: opening the state, building
+/// the lifted input and copying the tag out of its `SymmetricTag` happen
+/// outside it.
+fn measure_allocations(case: &Case, expected: ExpectedAllocations) {
     let message = vec![0x5a; LARGE_LEN];
+    let tag_len = open(case)
+        .inner()
+        .max_tag_len()
+        .expect("AEADs have a tag length");
 
     let (state, input) = (open(case), lifted(&message));
-    let (ciphertext_and_tag, info) = measure(|| encrypt(&state, input));
+    let (ciphertext_and_tag, encrypt_info) = measure(|| encrypt(&state, input));
     let ciphertext_and_tag = ciphertext_and_tag.expect("encryption succeeds");
-    check_copies(case, "encrypt", &info, expected.encrypt);
 
     let (state, input) = (open(case), lifted(&message));
-    let (detached, info) = measure(|| encrypt_detached(&state, input));
+    let (detached, encrypt_detached_info) = measure(|| encrypt_detached(&state, input));
     let (ciphertext, tag) = detached.expect("detached encryption succeeds");
-    check_copies(case, "encrypt_detached", &info, expected.encrypt_detached);
 
     let (state, input) = (open(case), lifted(&ciphertext_and_tag));
-    let (plaintext, info) = measure(|| decrypt(&state, input, LARGE_LEN));
+    let (plaintext, decrypt_info) = measure(|| decrypt(&state, input, LARGE_LEN));
     assert_eq!(plaintext.expect("decryption succeeds"), message);
-    check_copies(case, "decrypt", &info, expected.decrypt);
 
     let (state, input) = (open(case), lifted(&ciphertext));
-    let (plaintext, info) = measure(|| decrypt_detached(&state, input, &tag));
+    let (plaintext, decrypt_detached_info) =
+        measure(|| decrypt_detached(&state, input, tag.as_ref()));
     assert_eq!(plaintext.expect("detached decryption succeeds"), message);
-    check_copies(case, "decrypt_detached", &info, expected.decrypt_detached);
+
+    report(
+        case,
+        tag_len,
+        &[
+            ("encrypt", encrypt_info, expected.encrypt),
+            (
+                "encrypt_detached",
+                encrypt_detached_info,
+                expected.encrypt_detached,
+            ),
+            ("decrypt", decrypt_info, expected.decrypt),
+            (
+                "decrypt_detached",
+                decrypt_detached_info,
+                expected.decrypt_detached,
+            ),
+        ],
+    );
 }
 
 // Every algorithm encrypts and decrypts in the buffer the bindings received.
 // Only the attached encrypt allocates a message-sized buffer: appending the
-// tag to a `Vec` whose capacity equals its length reallocates it once.
+// tag to a `Vec` whose capacity equals its length reallocates it once, to
+// message + tag bytes. The remaining tag-sized allocations are:
+// - encrypt and encrypt_detached: the `Vec` inside the `SymmetricTag` that the
+//   detached primitive returns (the attached encrypt is built on it).
+// - decrypt: `split_off` moving the trailing tag into its own `Vec`.
 //
 // For comparison, before the host worked in the received buffer, AES-GCM and
 // ChaCha20-Poly1305 allocated 3 copies for encrypt (a `to_vec()` copy, whose
 // capacity then doubled when the tag was appended) and 1 for each other
 // operation, and Xoodyak allocated 1 fresh output buffer per operation.
-const IN_PLACE: ExpectedCopies = ExpectedCopies {
-    encrypt: 1,
-    encrypt_detached: 0,
-    decrypt: 0,
-    decrypt_detached: 0,
+const IN_PLACE: ExpectedAllocations = ExpectedAllocations {
+    encrypt: Bytes {
+        messages: 1,
+        tags: 2,
+    },
+    encrypt_detached: Bytes {
+        messages: 0,
+        tags: 1,
+    },
+    decrypt: Bytes {
+        messages: 0,
+        tags: 1,
+    },
+    decrypt_detached: Bytes {
+        messages: 0,
+        tags: 0,
+    },
 };
 
 #[test]
