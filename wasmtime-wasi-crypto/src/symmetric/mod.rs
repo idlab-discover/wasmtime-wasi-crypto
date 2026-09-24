@@ -6,6 +6,8 @@ mod key;
 mod sha2;
 mod state;
 mod tag;
+#[cfg(test)]
+mod tests;
 mod xoodyak;
 
 pub use self::key::SymmetricKey;

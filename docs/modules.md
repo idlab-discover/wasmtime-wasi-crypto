@@ -164,6 +164,7 @@ All functions return `CryptoErrno::UnsupportedFeature`. This interface is fully 
 | `wasi-ephemeral-crypto-kx`                | `wasi-crypto-kx`                | Partial | X25519 DH, keypair/key round-trips, low-order point rejection covered; Kyber KEM `#[should_panic]`                                                                   |
 | `wasi-ephemeral-crypto-asymmetric-common` | `wasi-crypto-asymmetric-common` | Partial | keypair/publickey/secretkey lifecycle across Ed25519, ECDSA P256/P384, X25519; `keypair_from_pk_and_sk` expects `NotImplemented`; managed keypairs `#[should_panic]` |
 | `wasi-ephemeral-crypto-symmetric`         | `wasi-crypto-in-place`          | Partial | guest-memory regression tests: plain encrypt/decrypt (AEADs, Xoodyak) allocate a separate output buffer, measured via `allocation-counter` and `memory.size`; `in_place` helpers write the result over the input with no guest allocation or memory growth |
+| `wasi-ephemeral-crypto-symmetric`         | native: `symmetric/tests.rs`    | Partial | AEADs only (AES-GCM, (X)ChaCha20-Poly1305, Xoodyak): `insta` known-answer snapshots of ciphertext and tags, round-trip and tampered-tag checks, and host allocation counts per encrypt/decrypt operation |
 | `wasi-ephemeral-crypto-external-secrets`  | /                               | Missing | not yet written                                                                                                                                                      |
 
 **Test behavior:**
@@ -171,5 +172,7 @@ All functions return `CryptoErrno::UnsupportedFeature`. This interface is fully 
 - Pass: feature implemented and working.
 - `#[should_panic]`: optional feature not implemented; host returns `UnsupportedFeature`, guest `.unwrap()` panics as expected.
 - Host `todo!()`: incomplete implementation — test fails with "Host implementation feature not yet implemented".
+
+**Native host tests:** `wasmtime-wasi-crypto` also has ordinary unit tests (`cargo test -p wasmtime-wasi-crypto`) that call the host implementation directly, without a guest. They cover what a component test can't observe, such as exact output bytes (`insta` snapshots, reviewed with `cargo insta review`) and host allocations.
 
 **Test origin:** AI-generated from doctests WITX 0.10, the [wasi-crypto-host-functions](https://github.com/wasm-crypto/wasi-crypto-host-functions) tests, regression tests, and invariants to uphold from the spec. Note that these tests aim to serve as a starting point, not the end all-be-all. These were mostly just generated to catch implementation bugs, but can be used for a more complete system.

@@ -1,0 +1,10 @@
+---
+source: wasmtime-wasi-crypto/src/symmetric/tests.rs
+expression: known_answer(&case)
+---
+KnownAnswer {
+    ciphertext_and_tag: "e3740ba2f310141636a907d1180eba215d025fa1f051150a3cde383b2036a198f00a3508f668747367af5d520f6052f12f332e49e74d118ad16695f34b472ea3b8de2132ff432991059e00595783",
+    detached_ciphertext: "e3740ba2f310141636a907d1180eba215d025fa1f051150a3cde383b2036a198f00a3508f668747367af5d520f6052f12f332e49e74d118ad16695f34b47",
+    detached_tag: "2ea3b8de2132ff432991059e00595783",
+    empty_message_tag: "0f3716e030feb3f016528d5c880a1601",
+}
