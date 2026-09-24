@@ -458,6 +458,16 @@ mod tests {
         vec![0x5a; MESSAGE_LEN]
     }
 
+    /// Returns `(plaintext, ciphertext)` for `message()` under `key`. Both stay
+    /// alive, so setting them up leaves no freed message-sized heap block
+    /// behind that a measured call could reuse without growing memory.
+    fn encrypted_message(alg: &str, key: &SymmetricKey) -> (Vec<u8>, Vec<u8>) {
+        let plaintext = message();
+        let ciphertext =
+            symmetric_state_encrypt(&open(alg, key), &plaintext).expect("encrypt failed");
+        (plaintext, ciphertext)
+    }
+
     /// Checks the non-in-place behaviour: the host placed the result in a new,
     /// message-sized guest allocation, separate from the input, so the guest
     /// held both at the same time.
@@ -504,9 +514,7 @@ mod tests {
 
     fn decrypt_baseline(alg: &str) {
         let key = symmetric_key_generate(alg, None).expect("key generation failed");
-        let plaintext = message();
-        let ciphertext =
-            symmetric_state_encrypt(&open(alg, &key), &plaintext).expect("encrypt failed");
+        let (plaintext, ciphertext) = encrypted_message(alg, &key);
         let state = open(alg, &key);
 
         let (decrypted, m) = measure(|| {
@@ -636,8 +644,7 @@ mod tests {
 
     fn decrypt_in_place(alg: &str) {
         let key = symmetric_key_generate(alg, None).expect("key generation failed");
-        let mut buf =
-            symmetric_state_encrypt(&open(alg, &key), &message()).expect("encrypt failed");
+        let (plaintext, mut buf) = encrypted_message(alg, &key);
         let state = open(alg, &key);
         let (input_ptr, input_len) = (buf.as_ptr(), buf.len());
 
@@ -645,7 +652,7 @@ mod tests {
 
         report(&format!("{alg} decrypt in place"), input_ptr, input_len, &buf, &m);
         assert_in_place(input_ptr, &buf, &m);
-        assert!(buf == message(), "decryption did not round-trip");
+        assert!(buf == plaintext, "decryption did not round-trip");
     }
 
     #[test]
@@ -715,6 +722,108 @@ mod tests {
         let expected = symmetric_state_encrypt(&open(alg, &key), &[]).expect("encrypt failed");
         assert_eq!(buf, expected);
     }
+
+    // ── comparison: in place against the plain API, in one setup ────────────
+    //
+    // The checks above bound each API against fixed thresholds in separate
+    // tests. These run both versions of one operation in the same test, with
+    // every input allocated before either call is measured, and check that
+    // the in-place helper saved at least a message's worth of guest memory.
+    //
+    // The in-place call is measured first. Measured second, it could reuse
+    // heap the plain call had freed, hiding growth it would otherwise cause.
+
+    /// Checks that `in_place` needed at least one message-sized buffer less
+    /// than `plain`, both at the heap peak and in linear memory growth.
+    #[track_caller]
+    fn assert_saves_a_message(in_place: &Measurement, plain: &Measurement) {
+        assert!(
+            in_place.heap.bytes_max + MESSAGE_LEN as u64 <= plain.heap.bytes_max,
+            "in-place heap peak should be at least a message below the plain API's:\n\
+             in place: {in_place:?}\n\
+             plain:    {plain:?}"
+        );
+        // Up to a page of slack, as in `assert_fresh_output_buffer`: growing
+        // memory for the inputs can leave part of a page free for the output.
+        assert!(
+            in_place.memory_growth + MESSAGE_LEN - 64 * 1024 <= plain.memory_growth,
+            "in-place memory growth should be at least a message below the plain API's:\n\
+             in place: {in_place:?}\n\
+             plain:    {plain:?}"
+        );
+    }
+
+    fn compare_encrypt(alg: &str) {
+        let key = symmetric_key_generate(alg, None).expect("key generation failed");
+        let (in_place_state, plain_state) = (open(alg, &key), open(alg, &key));
+        let mut buf = message_with_tag_room(&in_place_state);
+        let plaintext = message();
+        let (input_ptr, input_len) = (buf.as_ptr(), buf.len());
+
+        let ((), in_place_m) =
+            measure(|| in_place::encrypt(&in_place_state, &mut buf).expect("encrypt failed"));
+        let (ciphertext, plain_m) =
+            measure(|| symmetric_state_encrypt(&plain_state, &plaintext).expect("encrypt failed"));
+
+        report(&format!("{alg} encrypt in place (compared)"), input_ptr, input_len, &buf, &in_place_m);
+        report(&format!("{alg} encrypt plain (compared)"), plaintext.as_ptr(), plaintext.len(), &ciphertext, &plain_m);
+        assert!(buf == ciphertext, "in-place ciphertext differs from the plain API's");
+        assert_saves_a_message(&in_place_m, &plain_m);
+    }
+
+    fn compare_decrypt(alg: &str) {
+        let key = symmetric_key_generate(alg, None).expect("key generation failed");
+        let (plaintext, ciphertext) = encrypted_message(alg, &key);
+        let mut buf = ciphertext.clone();
+        let (in_place_state, plain_state) = (open(alg, &key), open(alg, &key));
+        let (input_ptr, input_len) = (buf.as_ptr(), buf.len());
+
+        let ((), in_place_m) =
+            measure(|| in_place::decrypt(&in_place_state, &mut buf).expect("decrypt failed"));
+        let (decrypted, plain_m) = measure(|| {
+            symmetric_state_decrypt(&plain_state, &ciphertext, MESSAGE_LEN as _)
+                .expect("decrypt failed")
+        });
+
+        report(&format!("{alg} decrypt in place (compared)"), input_ptr, input_len, &buf, &in_place_m);
+        report(&format!("{alg} decrypt plain (compared)"), ciphertext.as_ptr(), ciphertext.len(), &decrypted, &plain_m);
+        assert!(buf == plaintext && decrypted == plaintext, "decryption did not round-trip");
+        assert_saves_a_message(&in_place_m, &plain_m);
+    }
+
+    #[test]
+    fn compare_encrypt_aes256gcm() {
+        compare_encrypt("AES-256-GCM");
+    }
+
+    #[test]
+    fn compare_encrypt_chacha20poly1305() {
+        compare_encrypt("CHACHA20-POLY1305");
+    }
+
+    #[test]
+    fn compare_encrypt_xoodyak128() {
+        compare_encrypt("XOODYAK-128");
+    }
+
+    #[test]
+    fn compare_decrypt_aes256gcm() {
+        compare_decrypt("AES-256-GCM");
+    }
+
+    #[test]
+    fn compare_decrypt_chacha20poly1305() {
+        compare_decrypt("CHACHA20-POLY1305");
+    }
+
+    #[test]
+    fn compare_decrypt_xoodyak128() {
+        compare_decrypt("XOODYAK-128");
+    }
+
+    // TODO: compare the detached variants too. They are only measured against
+    // fixed thresholds, in `baseline_*_detached_*` and
+    // `in_place_detached_aes256gcm_round_trip`.
 
     // TODO: test that `call_in_place` traps when the result doesn't fit in the
     // buffer's capacity (the adapter's `BumpAlloc` behaviour). Guests build

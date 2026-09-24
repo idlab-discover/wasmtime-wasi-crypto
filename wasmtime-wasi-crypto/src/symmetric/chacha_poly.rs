@@ -206,8 +206,8 @@ impl SymmetricStateLike for ChaChaPolySymmetricState {
         //
         // Known limitation: Wasmtime lifts the argument into a `Vec` whose
         // capacity equals its length, so this reserve does reallocate once
-        // and copies the message. Avoiding that requires allocating the
-        // output while lifting the guest's list (e.g. via `WasmList<u8>`).
+        // and copies the message. The `bindgen!`-generated bindings offer
+        // no way to allocate room for the tag while lifting the list.
         out.reserve_exact(TAG_LEN);
         out.extend_from_slice(tag.as_ref());
         Ok(out)
