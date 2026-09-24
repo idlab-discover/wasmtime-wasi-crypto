@@ -183,39 +183,64 @@ impl SymmetricStateLike for AesGcmSymmetricState {
         Ok(TAG_LEN)
     }
 
-    fn encrypt_unchecked(&mut self, data: &[u8]) -> CryptoResult<Vec<u8>> {
+    // Encryption and decryption happen in place, in the `Vec` the bindings
+    // received, which is then returned as the output.
+
+    fn encrypt_unchecked(&mut self, data: Vec<u8>) -> CryptoResult<Vec<u8>> {
         let (mut out, tag) = self.encrypt_detached_unchecked(data)?;
+        // Reserve exactly the tag length, rather than letting `extend` grow
+        // the capacity by doubling it. Reserving only after encrypting means
+        // that if this reallocates, the buffer it frees holds ciphertext
+        // rather than plaintext.
+        //
+        // Known limitation: Wasmtime lifts the argument into a `Vec` whose
+        // capacity equals its length, so this reserve does reallocate once
+        // and copies the message. Avoiding that requires allocating the
+        // output while lifting the guest's list (e.g. via `WasmList<u8>`).
+        out.reserve_exact(TAG_LEN);
         out.extend_from_slice(tag.as_ref());
         Ok(out)
     }
 
-    fn encrypt_detached_unchecked(&mut self, data: &[u8]) -> CryptoResult<(Vec<u8>, SymmetricTag)> {
+    fn encrypt_detached_unchecked(
+        &mut self,
+        mut data: Vec<u8>,
+    ) -> CryptoResult<(Vec<u8>, SymmetricTag)> {
         let nonce_bytes = self.nonce.as_ref().ok_or(CryptoErrno::NonceRequired)?;
         // Nonce length is validated to NONCE_LEN in the constructor, so this cannot fail.
         let nonce: Nonce<Aes128Gcm> = nonce_bytes[..]
             .try_into()
             .expect("nonce is NONCE_LEN bytes; validated in constructor");
-        let mut out = data.to_vec();
-        let raw_tag = match &self.ctx {
+        let result = match &self.ctx {
             AesGcmVariant::Aes128(x) => {
-                x.encrypt_inout_detached(&nonce, &self.ad, (&mut out[..]).into())
+                x.encrypt_inout_detached(&nonce, &self.ad, (&mut data[..]).into())
             }
             AesGcmVariant::Aes256(x) => {
-                x.encrypt_inout_detached(&nonce, &self.ad, (&mut out[..]).into())
+                x.encrypt_inout_detached(&nonce, &self.ad, (&mut data[..]).into())
             }
-        }
-        .map_err(|_| CryptoErrno::InternalError)?
-        .to_vec();
+        };
+        let raw_tag = match result {
+            Ok(raw_tag) => raw_tag.to_vec(),
+            Err(_) => {
+                // The buffer may hold a mix of plaintext and ciphertext.
+                data.zeroize();
+                return Err(CryptoErrno::InternalError.into());
+            }
+        };
 
         self.nonce = None;
-        Ok((out, SymmetricTag::new(self.alg, raw_tag)))
+        Ok((data, SymmetricTag::new(self.alg, raw_tag)))
     }
 
-    fn decrypt_unchecked(&mut self, data: &[u8], raw_tag: &[u8]) -> CryptoResult<Vec<u8>> {
+    fn decrypt_unchecked(&mut self, data: Vec<u8>, raw_tag: &[u8]) -> CryptoResult<Vec<u8>> {
         self.decrypt_detached_unchecked(data, raw_tag)
     }
 
-    fn decrypt_detached_unchecked(&mut self, data: &[u8], raw_tag: &[u8]) -> CryptoResult<Vec<u8>> {
+    fn decrypt_detached_unchecked(
+        &mut self,
+        mut data: Vec<u8>,
+        raw_tag: &[u8],
+    ) -> CryptoResult<Vec<u8>> {
         let nonce_bytes = self.nonce.as_ref().ok_or(CryptoErrno::NonceRequired)?;
         // Nonce length is validated to NONCE_LEN in the constructor, so this cannot fail.
         let nonce: Nonce<Aes128Gcm> = nonce_bytes[..]
@@ -223,16 +248,21 @@ impl SymmetricStateLike for AesGcmSymmetricState {
             .expect("nonce is NONCE_LEN bytes; validated in constructor");
         // Tag length comes from the caller; return InvalidTag rather than panicking.
         let tag: Tag<Aes128Gcm> = raw_tag.try_into().map_err(|_| CryptoErrno::InvalidTag)?;
-        let mut out = data.to_vec();
-        match &self.ctx {
+        let result = match &self.ctx {
             AesGcmVariant::Aes128(x) => {
-                x.decrypt_inout_detached(&nonce, &self.ad, (&mut out[..]).into(), &tag)
+                x.decrypt_inout_detached(&nonce, &self.ad, (&mut data[..]).into(), &tag)
             }
             AesGcmVariant::Aes256(x) => {
-                x.decrypt_inout_detached(&nonce, &self.ad, (&mut out[..]).into(), &tag)
+                x.decrypt_inout_detached(&nonce, &self.ad, (&mut data[..]).into(), &tag)
             }
+        };
+        if result.is_err() {
+            // `aes-gcm` verifies the tag before decrypting, so the buffer
+            // still holds ciphertext. Zeroize it anyway, so that no partial
+            // plaintext can be left behind even if that changes.
+            data.zeroize();
+            return Err(CryptoErrno::InvalidTag.into());
         }
-        .map_err(|_| CryptoErrno::InvalidTag)?;
-        Ok(out)
+        Ok(data)
     }
 }

@@ -30,9 +30,9 @@ impl SymmetricState {
         self.inner.lock().unwrap()
     }
 
-    pub(crate) fn locked<T, U>(&self, mut f: T) -> U
+    pub(crate) fn locked<T, U>(&self, f: T) -> U
     where
-        T: FnMut(MutexGuard<'_, Box<dyn SymmetricStateLike>>) -> U,
+        T: FnOnce(MutexGuard<'_, Box<dyn SymmetricStateLike>>) -> U,
     {
         f(self.inner())
     }
@@ -126,11 +126,16 @@ pub trait SymmetricStateLike: Sync + Send {
         Err(CryptoErrno::InvalidOperation.into())
     }
 
-    fn encrypt_unchecked(&mut self, _data: &[u8]) -> CryptoResult<Vec<u8>> {
+    // The encrypt/decrypt family takes its input as an owned `Vec`. The
+    // bindings already receive one from Wasmtime's lift of the `list<u8>`
+    // argument, so implementations can encrypt or decrypt in that buffer and
+    // return it, instead of copying it into a separate output first.
+
+    fn encrypt_unchecked(&mut self, _data: Vec<u8>) -> CryptoResult<Vec<u8>> {
         Err(CryptoErrno::InvalidOperation.into())
     }
 
-    fn encrypt(&mut self, data: &[u8]) -> CryptoResult<Vec<u8>> {
+    fn encrypt(&mut self, data: Vec<u8>) -> CryptoResult<Vec<u8>> {
         // if !(out.len()
         //     == data
         //         .len()
@@ -147,12 +152,12 @@ pub trait SymmetricStateLike: Sync + Send {
 
     fn encrypt_detached_unchecked(
         &mut self,
-        _data: &[u8],
+        _data: Vec<u8>,
     ) -> CryptoResult<(Vec<u8>, SymmetricTag)> {
         Err(CryptoErrno::InvalidOperation.into())
     }
 
-    fn encrypt_detached(&mut self, data: &[u8]) -> CryptoResult<(Vec<u8>, SymmetricTag)> {
+    fn encrypt_detached(&mut self, data: Vec<u8>) -> CryptoResult<(Vec<u8>, SymmetricTag)> {
         // if !(out.len() == data.len()) {
         //     return Err(CryptoErrno::InvalidLength);
         // }
@@ -163,19 +168,22 @@ pub trait SymmetricStateLike: Sync + Send {
         self.encrypt_detached_unchecked(data)
     }
 
-    fn decrypt_unchecked(&mut self, _data: &[u8], _raw_tag: &[u8]) -> CryptoResult<Vec<u8>> {
+    fn decrypt_unchecked(&mut self, _data: Vec<u8>, _raw_tag: &[u8]) -> CryptoResult<Vec<u8>> {
         Err(CryptoErrno::InvalidOperation.into())
     }
 
-    fn decrypt(&mut self, data: &[u8], out_len: usize) -> CryptoResult<Vec<u8>> {
+    fn decrypt(&mut self, mut data: Vec<u8>, out_len: usize) -> CryptoResult<Vec<u8>> {
         if self.size_limit().is_some_and(|l| data.len() > l) {
             return Err(CryptoErrno::Overflow.into());
         }
         if out_len > data.len() {
             return Err(CryptoErrno::Overflow.into());
         }
-        let (ciphertext, raw_tag) = data.split_at(out_len);
-        match self.decrypt_unchecked(ciphertext, raw_tag) {
+        // Move the tag out of the buffer, so that what remains is exactly the
+        // ciphertext and can be decrypted in place. `split_off` only allocates
+        // the few tag bytes and leaves the ciphertext where it is.
+        let raw_tag = data.split_off(out_len);
+        match self.decrypt_unchecked(data, &raw_tag) {
             Ok(out) => Ok(out),
             Err(e) => {
                 // out.iter_mut().for_each(|x| *x = 0);
@@ -186,13 +194,13 @@ pub trait SymmetricStateLike: Sync + Send {
 
     fn decrypt_detached_unchecked(
         &mut self,
-        _data: &[u8],
+        _data: Vec<u8>,
         _raw_tag: &[u8],
     ) -> CryptoResult<Vec<u8>> {
         Err(CryptoErrno::InvalidOperation.into())
     }
 
-    fn decrypt_detached(&mut self, data: &[u8], raw_tag: &[u8]) -> CryptoResult<Vec<u8>> {
+    fn decrypt_detached(&mut self, data: Vec<u8>, raw_tag: &[u8]) -> CryptoResult<Vec<u8>> {
         // if !(out.len() == data.len()) {
         //     return Err(CryptoErrno::InvalidLength);
         // }

@@ -194,55 +194,79 @@ impl SymmetricStateLike for ChaChaPolySymmetricState {
         Ok(TAG_LEN)
     }
 
-    fn encrypt_unchecked(&mut self, data: &[u8]) -> CryptoResult<Vec<u8>> {
+    // Encryption and decryption happen in place, in the `Vec` the bindings
+    // received, which is then returned as the output.
+
+    fn encrypt_unchecked(&mut self, data: Vec<u8>) -> CryptoResult<Vec<u8>> {
         let (mut out, tag) = self.encrypt_detached_unchecked(data)?;
+        // Reserve exactly the tag length, rather than letting `extend` grow
+        // the capacity by doubling it. Reserving only after encrypting means
+        // that if this reallocates, the buffer it frees holds ciphertext
+        // rather than plaintext.
+        //
+        // Known limitation: Wasmtime lifts the argument into a `Vec` whose
+        // capacity equals its length, so this reserve does reallocate once
+        // and copies the message. Avoiding that requires allocating the
+        // output while lifting the guest's list (e.g. via `WasmList<u8>`).
+        out.reserve_exact(TAG_LEN);
         out.extend_from_slice(tag.as_ref());
         Ok(out)
     }
 
-    fn encrypt_detached_unchecked(&mut self, data: &[u8]) -> CryptoResult<(Vec<u8>, SymmetricTag)> {
+    fn encrypt_detached_unchecked(
+        &mut self,
+        mut data: Vec<u8>,
+    ) -> CryptoResult<(Vec<u8>, SymmetricTag)> {
         let nonce = self.nonce.as_ref().ok_or(CryptoErrno::NonceRequired)?;
-        let mut out = data.to_vec();
 
         // Nonce length is validated per-algorithm in the constructor, so these cannot fail.
-        let raw_tag = match &self.ctx {
+        let result = match &self.ctx {
             ChaChaPolyVariant::ChaCha(x) => {
                 let n: Nonce<ChaCha20Poly1305> = nonce[..]
                     .try_into()
                     .expect("ChaCha nonce is 12 bytes; validated in constructor");
-                x.encrypt_inout_detached(&n, &self.ad, (&mut out[..]).into())
+                x.encrypt_inout_detached(&n, &self.ad, (&mut data[..]).into())
             }
             ChaChaPolyVariant::XChaCha(x) => {
                 let n: Nonce<XChaCha20Poly1305> = nonce[..]
                     .try_into()
                     .expect("XChaCha nonce is 24 bytes; validated in constructor");
-                x.encrypt_inout_detached(&n, &self.ad, (&mut out[..]).into())
+                x.encrypt_inout_detached(&n, &self.ad, (&mut data[..]).into())
             }
-        }
-        .map_err(|_| CryptoErrno::InternalError)?
-        .to_vec();
+        };
+        let raw_tag = match result {
+            Ok(raw_tag) => raw_tag.to_vec(),
+            Err(_) => {
+                // The buffer may hold a mix of plaintext and ciphertext.
+                data.zeroize();
+                return Err(CryptoErrno::InternalError.into());
+            }
+        };
 
         self.nonce = None;
-        Ok((out, SymmetricTag::new(self.alg, raw_tag)))
+        Ok((data, SymmetricTag::new(self.alg, raw_tag)))
     }
 
-    fn decrypt_unchecked(&mut self, data: &[u8], raw_tag: &[u8]) -> CryptoResult<Vec<u8>> {
+    fn decrypt_unchecked(&mut self, data: Vec<u8>, raw_tag: &[u8]) -> CryptoResult<Vec<u8>> {
         self.decrypt_detached_unchecked(data, raw_tag)
     }
 
-    fn decrypt_detached_unchecked(&mut self, data: &[u8], raw_tag: &[u8]) -> CryptoResult<Vec<u8>> {
+    fn decrypt_detached_unchecked(
+        &mut self,
+        mut data: Vec<u8>,
+        raw_tag: &[u8],
+    ) -> CryptoResult<Vec<u8>> {
         let nonce = self.nonce.as_ref().ok_or(CryptoErrno::NonceRequired)?;
-        let mut out = data.to_vec();
 
         // Nonce length validated in constructor; tag length from caller -- return InvalidTag on mismatch.
-        match &self.ctx {
+        let result = match &self.ctx {
             ChaChaPolyVariant::ChaCha(x) => {
                 let n: Nonce<ChaCha20Poly1305> = nonce[..]
                     .try_into()
                     .expect("ChaCha nonce is 12 bytes; validated in constructor");
                 let t: Tag<ChaCha20Poly1305> =
                     raw_tag.try_into().map_err(|_| CryptoErrno::InvalidTag)?;
-                x.decrypt_inout_detached(&n, &self.ad, (&mut out[..]).into(), &t)
+                x.decrypt_inout_detached(&n, &self.ad, (&mut data[..]).into(), &t)
             }
             ChaChaPolyVariant::XChaCha(x) => {
                 let n: Nonce<XChaCha20Poly1305> = nonce[..]
@@ -250,10 +274,16 @@ impl SymmetricStateLike for ChaChaPolySymmetricState {
                     .expect("XChaCha nonce is 24 bytes; validated in constructor");
                 let t: Tag<XChaCha20Poly1305> =
                     raw_tag.try_into().map_err(|_| CryptoErrno::InvalidTag)?;
-                x.decrypt_inout_detached(&n, &self.ad, (&mut out[..]).into(), &t)
+                x.decrypt_inout_detached(&n, &self.ad, (&mut data[..]).into(), &t)
             }
+        };
+        if result.is_err() {
+            // `chacha20poly1305` verifies the tag before decrypting, so the
+            // buffer still holds ciphertext. Zeroize it anyway, so that no
+            // partial plaintext can be left behind even if that changes.
+            data.zeroize();
+            return Err(CryptoErrno::InvalidTag.into());
         }
-        .map_err(|_| CryptoErrno::InvalidTag)?;
-        Ok(out)
+        Ok(data)
     }
 }

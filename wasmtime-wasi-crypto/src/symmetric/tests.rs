@@ -77,11 +77,11 @@ fn open(case: &Case) -> SymmetricState {
 }
 
 fn encrypt(state: &SymmetricState, message: Vec<u8>) -> CryptoResult<Vec<u8>> {
-    state.inner().encrypt(&message)
+    state.inner().encrypt(message)
 }
 
 fn encrypt_detached(state: &SymmetricState, message: Vec<u8>) -> CryptoResult<(Vec<u8>, Vec<u8>)> {
-    let (ciphertext, tag) = state.inner().encrypt_detached(&message)?;
+    let (ciphertext, tag) = state.inner().encrypt_detached(message)?;
     Ok((ciphertext, tag.as_ref().to_vec()))
 }
 
@@ -90,7 +90,7 @@ fn decrypt(
     ciphertext_and_tag: Vec<u8>,
     out_len: usize,
 ) -> CryptoResult<Vec<u8>> {
-    state.inner().decrypt(&ciphertext_and_tag, out_len)
+    state.inner().decrypt(ciphertext_and_tag, out_len)
 }
 
 fn decrypt_detached(
@@ -98,7 +98,7 @@ fn decrypt_detached(
     ciphertext: Vec<u8>,
     tag: &[u8],
 ) -> CryptoResult<Vec<u8>> {
-    state.inner().decrypt_detached(&ciphertext, tag)
+    state.inner().decrypt_detached(ciphertext, tag)
 }
 
 fn expect_invalid_tag(result: CryptoResult<Vec<u8>>) {
@@ -329,52 +329,47 @@ fn measure_allocations(case: &Case, expected: ExpectedCopies) {
     check_copies(case, "decrypt_detached", &info, expected.decrypt_detached);
 }
 
-// AES-GCM and ChaCha20-Poly1305 copy the input with `to_vec()` and encrypt or
-// decrypt that copy. The attached encrypt then appends the tag, and because
-// the copy has no spare capacity, `Vec`'s amortized growth doubles it: one
-// copy of the message plus one buffer of twice its size.
-const COPY_THEN_APPEND: ExpectedCopies = ExpectedCopies {
-    encrypt: 3,
-    encrypt_detached: 1,
-    decrypt: 1,
-    decrypt_detached: 1,
-};
-
-// Xoodyak writes each result into a freshly zeroed output buffer, sized to
-// include the tag for the attached encrypt.
-const FRESH_OUTPUT: ExpectedCopies = ExpectedCopies {
+// Every algorithm encrypts and decrypts in the buffer the bindings received.
+// Only the attached encrypt allocates a message-sized buffer: appending the
+// tag to a `Vec` whose capacity equals its length reallocates it once.
+//
+// For comparison, before the host worked in the received buffer, AES-GCM and
+// ChaCha20-Poly1305 allocated 3 copies for encrypt (a `to_vec()` copy, whose
+// capacity then doubled when the tag was appended) and 1 for each other
+// operation, and Xoodyak allocated 1 fresh output buffer per operation.
+const IN_PLACE: ExpectedCopies = ExpectedCopies {
     encrypt: 1,
-    encrypt_detached: 1,
-    decrypt: 1,
-    decrypt_detached: 1,
+    encrypt_detached: 0,
+    decrypt: 0,
+    decrypt_detached: 0,
 };
 
 #[test]
 fn host_allocations_aes_128_gcm() {
-    measure_allocations(&AES_128_GCM, COPY_THEN_APPEND);
+    measure_allocations(&AES_128_GCM, IN_PLACE);
 }
 
 #[test]
 fn host_allocations_aes_256_gcm() {
-    measure_allocations(&AES_256_GCM, COPY_THEN_APPEND);
+    measure_allocations(&AES_256_GCM, IN_PLACE);
 }
 
 #[test]
 fn host_allocations_chacha20_poly1305() {
-    measure_allocations(&CHACHA20_POLY1305, COPY_THEN_APPEND);
+    measure_allocations(&CHACHA20_POLY1305, IN_PLACE);
 }
 
 #[test]
 fn host_allocations_xchacha20_poly1305() {
-    measure_allocations(&XCHACHA20_POLY1305, COPY_THEN_APPEND);
+    measure_allocations(&XCHACHA20_POLY1305, IN_PLACE);
 }
 
 #[test]
 fn host_allocations_xoodyak_128() {
-    measure_allocations(&XOODYAK_128, FRESH_OUTPUT);
+    measure_allocations(&XOODYAK_128, IN_PLACE);
 }
 
 #[test]
 fn host_allocations_xoodyak_160() {
-    measure_allocations(&XOODYAK_160, FRESH_OUTPUT);
+    measure_allocations(&XOODYAK_160, IN_PLACE);
 }

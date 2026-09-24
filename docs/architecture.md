@@ -55,3 +55,20 @@ The WIT spec is a conservative translation but a few deviations were unavoidable
 | `size` type                | `usize` (platform word)                                | `u32`                                                          |
 | `version`                  | `u64` constant                                         | `variant` with named cases                                     |
 | Batch interfaces           | Defined and broken (also not present in wasmtime impl) | Defined but commented out of `world.wit`                       |
+
+## Symmetric encryption buffers (`symmetric/`)
+
+The four encryption functions (`symmetric-state-encrypt`, `-encrypt-detached`, `-decrypt` and `-decrypt-detached`) take their input as a `list<u8>`. Wasmtime lifts that list into an owned `Vec<u8>`, allocated with a capacity equal to its length, and hands it to the host. The `SymmetricStateLike` encrypt and decrypt methods take that `Vec` by value, and each AEAD (AES-GCM, ChaCha20-Poly1305, XChaCha20-Poly1305 and Xoodyak) encrypts or decrypts in it and returns the same buffer as its output.
+
+| Operation            | Message-sized host allocations | Why                                                                     |
+| -------------------- | ------------------------------ | ----------------------------------------------------------------------- |
+| `encrypt`            | 1                              | Appending the tag grows the lifted buffer, which has no spare capacity. |
+| `encrypt-detached`   | 0                              | The ciphertext is the input buffer; the tag is separate.                |
+| `decrypt`            | 0                              | The tag is split off the end, and the rest is decrypted in place.       |
+| `decrypt-detached`   | 0                              | The input buffer is decrypted in place.                                 |
+
+The tag for `encrypt` is reserved only after encrypting, so the buffer freed by that reallocation holds ciphertext, not plaintext. Avoiding the reallocation altogether would require allocating the output while lifting the guest's list (for example by receiving a `WasmList<u8>`), which `bindgen!` does not do.
+
+On any failure after the buffer has been modified, and on every failed decryption, the buffer is zeroized before the error is returned. AES-GCM and ChaCha20-Poly1305 verify the tag before decrypting, so a failed decryption never produces plaintext; Xoodyak decrypts before it can verify, and its buffer is zeroized on mismatch.
+
+These numbers are for the host only. Crossing the component boundary still copies the input into the host and the output back into guest memory. The native tests in `symmetric/tests.rs` pin the output bytes of every AEAD (as `insta` snapshots) and assert the allocation counts above.

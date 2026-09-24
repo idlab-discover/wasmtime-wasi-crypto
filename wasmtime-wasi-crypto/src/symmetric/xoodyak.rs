@@ -191,59 +191,73 @@ impl SymmetricStateLike for XoodyakSymmetricState {
         Ok(XOODYAK_AUTH_TAG_BYTES)
     }
 
-    fn encrypt_unchecked(&mut self, data: &[u8]) -> CryptoResult<Vec<u8>> {
-        let ct_len = data
-            .len()
-            .checked_add(XOODYAK_AUTH_TAG_BYTES)
-            .ok_or(CryptoErrno::Overflow)?;
-        let mut out = vec![0u8; ct_len];
-        match self.xoodyak_state.aead_encrypt(&mut out, Some(data)) {
-            Err(XoodyakError::KeyRequired) => Err(CryptoErrno::InvalidOperation.into()),
-            Err(_) => Err(CryptoErrno::Overflow.into()),
-            Ok(()) => Ok(out),
-        }
+    // Encryption and decryption happen in place, in the `Vec` the bindings
+    // received, which is then returned as the output. The crate's in-place
+    // functions perform the same duplex operations as the copying ones, so
+    // the output bytes are the same.
+
+    fn encrypt_unchecked(&mut self, data: Vec<u8>) -> CryptoResult<Vec<u8>> {
+        // This is what `aead_encrypt_in_place` does too, except that it needs
+        // the room for the tag before encrypting. Reserving only after
+        // encrypting means that if this reallocates, the buffer it frees
+        // holds ciphertext rather than plaintext.
+        //
+        // Known limitation: Wasmtime lifts the argument into a `Vec` whose
+        // capacity equals its length, so this reserve does reallocate once
+        // and copies the message. Avoiding that requires allocating the
+        // output while lifting the guest's list (e.g. via `WasmList<u8>`).
+        let (mut out, tag) = self.encrypt_detached_unchecked(data)?;
+        out.reserve_exact(XOODYAK_AUTH_TAG_BYTES);
+        out.extend_from_slice(tag.as_ref());
+        Ok(out)
     }
 
-    fn encrypt_detached_unchecked(&mut self, data: &[u8]) -> CryptoResult<(Vec<u8>, SymmetricTag)> {
-        let mut out = vec![0u8; data.len()];
-        match self
-            .xoodyak_state
-            .aead_encrypt_detached(&mut out, Some(data))
-        {
+    fn encrypt_detached_unchecked(
+        &mut self,
+        mut data: Vec<u8>,
+    ) -> CryptoResult<(Vec<u8>, SymmetricTag)> {
+        // The only failure is an unkeyed (hash) state, which is detected
+        // before the buffer is touched, so there is nothing to zeroize.
+        match self.xoodyak_state.aead_encrypt_in_place_detached(&mut data) {
             Err(XoodyakError::KeyRequired) => Err(CryptoErrno::InvalidOperation.into()),
             Err(_) => Err(CryptoErrno::Overflow.into()),
             Ok(xoodyak_tag) => {
                 let symmetric_tag = SymmetricTag::new(self.alg(), xoodyak_tag.as_ref().to_vec());
-                Ok((out, symmetric_tag))
+                Ok((data, symmetric_tag))
             }
         }
     }
 
-    fn decrypt_unchecked(&mut self, data: &[u8], raw_tag: &[u8]) -> CryptoResult<Vec<u8>> {
+    fn decrypt_unchecked(&mut self, data: Vec<u8>, raw_tag: &[u8]) -> CryptoResult<Vec<u8>> {
         self.decrypt_detached_unchecked(data, raw_tag)
     }
 
-    fn decrypt_detached_unchecked(&mut self, data: &[u8], raw_tag: &[u8]) -> CryptoResult<Vec<u8>> {
-        let mut out = vec![0u8; data.len()];
-        let msg_len = data.len();
+    fn decrypt_detached_unchecked(
+        &mut self,
+        mut data: Vec<u8>,
+        raw_tag: &[u8],
+    ) -> CryptoResult<Vec<u8>> {
         let mut raw_tag_ = [0u8; XOODYAK_AUTH_TAG_BYTES];
         if raw_tag.len() != raw_tag_.len() {
             return Err(CryptoErrno::InvalidTag.into());
         };
         raw_tag_.copy_from_slice(raw_tag);
+        // Unlike the AEADs above, Xoodyak decrypts before it can check the
+        // tag, so on a mismatch the buffer briefly holds plaintext. The crate
+        // zeroes it itself; zeroize here too, so that doesn't depend on it.
         match self
             .xoodyak_state
-            .aead_decrypt_detached(&mut out, &raw_tag_.into(), Some(data))
+            .aead_decrypt_in_place_detached(&mut data, &raw_tag_.into())
         {
             Err(XoodyakError::KeyRequired) => {
-                out.zeroize();
+                data.zeroize();
                 Err(CryptoErrno::InvalidOperation.into())
             }
             Err(_) => {
-                out.zeroize();
+                data.zeroize();
                 Err(CryptoErrno::InvalidTag.into())
             }
-            Ok(()) => Ok(out),
+            Ok(()) => Ok(data),
         }
     }
 
