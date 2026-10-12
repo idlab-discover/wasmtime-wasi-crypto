@@ -329,7 +329,9 @@ pub mod in_place {
         // A buffer shorter than the tag can't be valid. Passing 0 lets the host
         // reject it with its usual error instead of us inventing one.
         let out_len = buf.len().saturating_sub(tag_len);
-        call_in_place(buf, |input| symmetric_state_decrypt(state, input, out_len as _))
+        call_in_place(buf, |input| {
+            symmetric_state_decrypt(state, input, out_len as _)
+        })
     }
 
     /// Decrypts `buf` in place, checking it against the detached `raw_tag`.
@@ -338,7 +340,9 @@ pub mod in_place {
         buf: &mut Vec<u8>,
         raw_tag: &[u8],
     ) -> Result<(), CryptoErrno> {
-        call_in_place(buf, |input| symmetric_state_decrypt_detached(state, input, raw_tag))
+        call_in_place(buf, |input| {
+            symmetric_state_decrypt_detached(state, input, raw_tag)
+        })
     }
 }
 
@@ -506,7 +510,13 @@ mod tests {
         let (ciphertext, m) =
             measure(|| symmetric_state_encrypt(&state, &plaintext).expect("encrypt failed"));
 
-        report(&format!("{alg} encrypt"), plaintext.as_ptr(), plaintext.len(), &ciphertext, &m);
+        report(
+            &format!("{alg} encrypt"),
+            plaintext.as_ptr(),
+            plaintext.len(),
+            &ciphertext,
+            &m,
+        );
         let tag_len = symmetric_state_max_tag_len(&state).expect("max_tag_len failed") as usize;
         assert_eq!(ciphertext.len(), MESSAGE_LEN + tag_len);
         assert_fresh_output_buffer(&plaintext, &ciphertext, &m);
@@ -521,7 +531,13 @@ mod tests {
             symmetric_state_decrypt(&state, &ciphertext, MESSAGE_LEN as _).expect("decrypt failed")
         });
 
-        report(&format!("{alg} decrypt"), ciphertext.as_ptr(), ciphertext.len(), &decrypted, &m);
+        report(
+            &format!("{alg} decrypt"),
+            ciphertext.as_ptr(),
+            ciphertext.len(),
+            &decrypted,
+            &m,
+        );
         assert!(decrypted == plaintext, "decryption did not round-trip");
         assert_fresh_output_buffer(&ciphertext, &decrypted, &m);
     }
@@ -573,7 +589,13 @@ mod tests {
             symmetric_state_encrypt_detached(&state, &plaintext).expect("encrypt_detached failed")
         });
 
-        report(&format!("{alg} encrypt_detached"), plaintext.as_ptr(), plaintext.len(), &ciphertext, &m);
+        report(
+            &format!("{alg} encrypt_detached"),
+            plaintext.as_ptr(),
+            plaintext.len(),
+            &ciphertext,
+            &m,
+        );
         assert_eq!(ciphertext.len(), MESSAGE_LEN);
         assert_fresh_output_buffer(&plaintext, &ciphertext, &m);
     }
@@ -593,7 +615,13 @@ mod tests {
                 .expect("decrypt_detached failed")
         });
 
-        report(&format!("{alg} decrypt_detached"), ciphertext.as_ptr(), ciphertext.len(), &decrypted, &m);
+        report(
+            &format!("{alg} decrypt_detached"),
+            ciphertext.as_ptr(),
+            ciphertext.len(),
+            &decrypted,
+            &m,
+        );
         assert!(decrypted == plaintext, "decryption did not round-trip");
         assert_fresh_output_buffer(&ciphertext, &decrypted, &m);
     }
@@ -634,12 +662,21 @@ mod tests {
 
         let ((), m) = measure(|| in_place::encrypt(&state, &mut buf).expect("encrypt failed"));
 
-        report(&format!("{alg} encrypt in place"), input_ptr, input_len, &buf, &m);
+        report(
+            &format!("{alg} encrypt in place"),
+            input_ptr,
+            input_len,
+            &buf,
+            &m,
+        );
         assert_in_place(input_ptr, &buf, &m);
         // Same key and nonce, so the plain API must produce the same bytes.
         let expected =
             symmetric_state_encrypt(&open(alg, &key), &message()).expect("encrypt failed");
-        assert!(buf == expected, "in-place ciphertext differs from the plain API's");
+        assert!(
+            buf == expected,
+            "in-place ciphertext differs from the plain API's"
+        );
     }
 
     fn decrypt_in_place(alg: &str) {
@@ -650,7 +687,13 @@ mod tests {
 
         let ((), m) = measure(|| in_place::decrypt(&state, &mut buf).expect("decrypt failed"));
 
-        report(&format!("{alg} decrypt in place"), input_ptr, input_len, &buf, &m);
+        report(
+            &format!("{alg} decrypt in place"),
+            input_ptr,
+            input_len,
+            &buf,
+            &m,
+        );
         assert_in_place(input_ptr, &buf, &m);
         assert!(buf == plaintext, "decryption did not round-trip");
     }
@@ -696,16 +739,27 @@ mod tests {
         let (tag, m) = measure(|| {
             in_place::encrypt_detached(&state, &mut buf).expect("encrypt_detached failed")
         });
-        report(&format!("{alg} encrypt_detached in place"), input_ptr, input_len, &buf, &m);
+        report(
+            &format!("{alg} encrypt_detached in place"),
+            input_ptr,
+            input_len,
+            &buf,
+            &m,
+        );
         assert_in_place(input_ptr, &buf, &m);
         let raw_tag = symmetric_tag_pull(tag).expect("tag pull failed");
 
         let state = open(alg, &key);
         let ((), m) = measure(|| {
-            in_place::decrypt_detached(&state, &mut buf, &raw_tag)
-                .expect("decrypt_detached failed")
+            in_place::decrypt_detached(&state, &mut buf, &raw_tag).expect("decrypt_detached failed")
         });
-        report(&format!("{alg} decrypt_detached in place"), input_ptr, input_len, &buf, &m);
+        report(
+            &format!("{alg} decrypt_detached in place"),
+            input_ptr,
+            input_len,
+            &buf,
+            &m,
+        );
         assert_in_place(input_ptr, &buf, &m);
         assert!(buf == message(), "decryption did not round-trip");
     }
@@ -765,9 +819,24 @@ mod tests {
         let (ciphertext, plain_m) =
             measure(|| symmetric_state_encrypt(&plain_state, &plaintext).expect("encrypt failed"));
 
-        report(&format!("{alg} encrypt in place (compared)"), input_ptr, input_len, &buf, &in_place_m);
-        report(&format!("{alg} encrypt plain (compared)"), plaintext.as_ptr(), plaintext.len(), &ciphertext, &plain_m);
-        assert!(buf == ciphertext, "in-place ciphertext differs from the plain API's");
+        report(
+            &format!("{alg} encrypt in place (compared)"),
+            input_ptr,
+            input_len,
+            &buf,
+            &in_place_m,
+        );
+        report(
+            &format!("{alg} encrypt plain (compared)"),
+            plaintext.as_ptr(),
+            plaintext.len(),
+            &ciphertext,
+            &plain_m,
+        );
+        assert!(
+            buf == ciphertext,
+            "in-place ciphertext differs from the plain API's"
+        );
         assert_saves_a_message(&in_place_m, &plain_m);
     }
 
@@ -785,9 +854,24 @@ mod tests {
                 .expect("decrypt failed")
         });
 
-        report(&format!("{alg} decrypt in place (compared)"), input_ptr, input_len, &buf, &in_place_m);
-        report(&format!("{alg} decrypt plain (compared)"), ciphertext.as_ptr(), ciphertext.len(), &decrypted, &plain_m);
-        assert!(buf == plaintext && decrypted == plaintext, "decryption did not round-trip");
+        report(
+            &format!("{alg} decrypt in place (compared)"),
+            input_ptr,
+            input_len,
+            &buf,
+            &in_place_m,
+        );
+        report(
+            &format!("{alg} decrypt plain (compared)"),
+            ciphertext.as_ptr(),
+            ciphertext.len(),
+            &decrypted,
+            &plain_m,
+        );
+        assert!(
+            buf == plaintext && decrypted == plaintext,
+            "decryption did not round-trip"
+        );
         assert_saves_a_message(&in_place_m, &plain_m);
     }
 
@@ -845,7 +929,10 @@ mod tests {
             matches!(result, Err(CryptoErrno::InvalidTag)),
             "expected InvalidTag, got {result:?}"
         );
-        assert!(buf == corrupted, "a failed decrypt must not modify the buffer");
+        assert!(
+            buf == corrupted,
+            "a failed decrypt must not modify the buffer"
+        );
 
         // The import allocator was never used, and must have been reset to
         // `None` anyway: a plain call afterwards still gets a separate buffer.
