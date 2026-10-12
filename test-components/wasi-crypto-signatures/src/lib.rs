@@ -362,9 +362,21 @@ mod tests {
     // ── managed keypair operations ────────────────────────────────────────────
 
     #[test]
-    #[should_panic]
     fn managed_keypair_generate_and_sign() {
-        let sm = secrets_manager_open(None).unwrap();
+        // Managed key pairs need a secrets manager, which the host doesn't
+        // implement: `secrets_manager_open` returns `UnsupportedFeature`.
+        // `#[should_panic]` can't express that on wasm (libtest ignores such
+        // tests without running them), so accept exactly that error and only
+        // run the managed-key scenario once a secrets manager exists.
+        // TODO: assert that `open` succeeds once the host implements a secrets manager.
+        let sm = match secrets_manager_open(None) {
+            Ok(sm) => sm,
+            Err(CryptoErrno::UnsupportedFeature) => {
+                eprintln!("secrets manager unsupported by the host; rest of the test skipped");
+                return;
+            }
+            Err(e) => panic!("unexpected error: {e:?}"),
+        };
         let kp = keypair_generate_managed(&sm, AlgorithmType::Signatures, "Ed25519", None).unwrap();
         let pk = keypair_publickey(&kp).unwrap();
         let _key_id = keypair_store_managed(&sm, &kp).unwrap();

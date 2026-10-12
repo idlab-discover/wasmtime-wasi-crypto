@@ -15,7 +15,8 @@ wit_bindgen::generate!({
 #[cfg(test)]
 mod tests {
     use crate::wasi::crypto::wasi_ephemeral_crypto_common::{
-        AlgorithmType, CryptoErrno, options_open, options_set,
+        AlgorithmType, CryptoErrno, SecretsManager, Version, options_open, options_set,
+        secrets_manager_open,
     };
     use crate::wasi::crypto::wasi_ephemeral_crypto_symmetric::*;
 
@@ -403,12 +404,33 @@ mod tests {
     }
 
     // ── managed key operations ────────────────────────────────────────────────
+    //
+    // Managed keys need a secrets manager, which the host doesn't implement:
+    // `secrets_manager_open` returns `UnsupportedFeature`. `#[should_panic]`
+    // can't express that on wasm: libtest ignores such tests without running
+    // them, and the runner reports the ignored test as passed. So these tests
+    // run, accept exactly `UnsupportedFeature` from `open`, and only exercise
+    // the managed-key scenario once a secrets manager exists.
+
+    /// Opens a secrets manager, or returns `None` when the host reports
+    /// `UnsupportedFeature`. Any other error fails the test.
+    // TODO: assert that `open` succeeds once the host implements a secrets manager.
+    fn open_secrets_manager() -> Option<SecretsManager> {
+        match secrets_manager_open(None) {
+            Ok(sm) => Some(sm),
+            Err(CryptoErrno::UnsupportedFeature) => {
+                eprintln!("secrets manager unsupported by the host; rest of the test skipped");
+                None
+            }
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+    }
 
     #[test]
-    #[should_panic]
     fn managed_key_generate_store_retrieve() {
-        use crate::wasi::crypto::wasi_ephemeral_crypto_common::{Version, secrets_manager_open};
-        let sm = secrets_manager_open(None).unwrap();
+        let Some(sm) = open_secrets_manager() else {
+            return;
+        };
         let key = symmetric_key_generate_managed(&sm, "HMAC/SHA-256", None).unwrap();
         let key_id = symmetric_key_store_managed(&sm, &key).unwrap();
         let retrieved = symmetric_key_from_id(&sm, &key_id, Version::Latest).unwrap();
@@ -418,10 +440,10 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn managed_key_id_returns_id_and_version() {
-        use crate::wasi::crypto::wasi_ephemeral_crypto_common::secrets_manager_open;
-        let sm = secrets_manager_open(None).unwrap();
+        let Some(sm) = open_secrets_manager() else {
+            return;
+        };
         let key = symmetric_key_generate_managed(&sm, "HMAC/SHA-256", None).unwrap();
         let (id, version) = symmetric_key_id(&key).unwrap();
         assert!(!id.is_empty());
@@ -432,10 +454,10 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn managed_key_replace() {
-        use crate::wasi::crypto::wasi_ephemeral_crypto_common::secrets_manager_open;
-        let sm = secrets_manager_open(None).unwrap();
+        let Some(sm) = open_secrets_manager() else {
+            return;
+        };
         let old = symmetric_key_generate_managed(&sm, "HMAC/SHA-256", None).unwrap();
         let new = symmetric_key_generate_managed(&sm, "HMAC/SHA-256", None).unwrap();
         let _new_version = symmetric_key_replace_managed(&sm, old, &new).unwrap();
