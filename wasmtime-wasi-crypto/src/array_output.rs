@@ -1,6 +1,4 @@
-use crate::{
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno, error::CryptoResult,
-};
+use crate::{bindings::wasi::crypto::common::CryptoErrno, error::CryptoResult};
 use std::io::{Cursor, Read};
 use wasmtime_wasi::ResourceTable;
 use zeroize::Zeroize;

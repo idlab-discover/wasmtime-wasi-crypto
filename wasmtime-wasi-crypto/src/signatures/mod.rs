@@ -6,7 +6,7 @@ mod rsa;
 pub mod secretkey;
 pub mod signature;
 
-use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno;
+use crate::bindings::wasi::crypto::common::CryptoErrno;
 use crate::error::{CryptoError, CryptoResult};
 use crate::options::OptionsLike;
 pub use crate::signatures::signature::Signature;

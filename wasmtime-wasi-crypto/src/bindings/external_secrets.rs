@@ -1,11 +1,10 @@
-use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
-    ArrayOutput, CryptoErrno, SecretsManager, Timestamp, Version,
-};
-use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_external_secrets::{Host, SecretId};
+use crate::bindings::wasi::crypto::common::{ArrayOutput, CryptoErrno, Timestamp, Version};
+use crate::bindings::wasi::crypto::external_secrets::{Host, SecretId};
+use crate::bindings::wasi::crypto::secrets_manager::SecretsManager;
 use crate::error::CryptoResult;
 
 impl Host for crate::crypto::WasiCryptoCtxView<'_> {
-    fn external_secret_store(
+    fn store(
         &mut self,
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         secret: Vec<u8>,
@@ -14,7 +13,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         Err(CryptoErrno::UnsupportedFeature.into())
     }
 
-    fn external_secret_replace(
+    fn replace(
         &mut self,
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         secret: Vec<u8>,
@@ -23,7 +22,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         Err(CryptoErrno::UnsupportedFeature.into())
     }
 
-    fn external_secret_from_id(
+    fn from_id(
         &mut self,
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         secret_id: SecretId,
@@ -32,7 +31,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         Err(CryptoErrno::UnsupportedFeature.into())
     }
 
-    fn external_secret_invalidate(
+    fn invalidate(
         &mut self,
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         secret_id: SecretId,
@@ -41,7 +40,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         Err(CryptoErrno::UnsupportedFeature.into())
     }
 
-    fn external_secret_encapsulate(
+    fn encapsulate(
         &mut self,
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         secret: Vec<u8>,
@@ -50,7 +49,7 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
         Err(CryptoErrno::UnsupportedFeature.into())
     }
 
-    fn external_secret_decapsulate(
+    fn decapsulate(
         &mut self,
         secrets_manager: wasmtime::component::Resource<SecretsManager>,
         encrypted_secret: Vec<u8>,

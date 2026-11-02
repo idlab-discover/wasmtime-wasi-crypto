@@ -1,8 +1,8 @@
 # wasmtime-wasi-crypto-workspace
 
-A WIP Wasmtime host implementation of [wasi-crypto](https://github.com/WebAssembly/wasi-crypto) using the modern WIT / Component Model interface (v0.11.0).
+A WIP Wasmtime host implementation of [wasi-crypto](https://github.com/WebAssembly/wasi-crypto) using the modern WIT / Component Model interface (v0.12.0).
 
-The WIT spec is a direct, conservative translation of the [WITX 0.10 spec](https://github.com/WebAssembly/wasi-crypto/tree/main/witx/witx-0.10), contributed upstream via [PR #94](https://github.com/WebAssembly/wasi-crypto/pull/94) (currently draft). The current goal is feature parity with the existing [wasi-crypto-host-functions](https://github.com/wasm-crypto/wasi-crypto-host-functions) WITX implementation before any modernizations are considered.
+The WIT spec started as a direct, conservative translation of the [WITX 0.10 spec](https://github.com/WebAssembly/wasi-crypto/tree/main/witx/witx-0.10) (v0.11.0). It was contributed upstream via [PR #94](https://github.com/WebAssembly/wasi-crypto/pull/94). Version 0.12.0 regroups it into one interface per algorithm family, with methods on resources.
 
 **Status:** experimental / WIP.
 
@@ -18,10 +18,10 @@ Each test component must be compiled for `wasm32-wasip2` and run via `wasmtime-h
 
 ```sh
 cargo test -p wasi-crypto-common --target wasm32-wasip2
+cargo test -p wasi-crypto-secrets-manager --target wasm32-wasip2
 cargo test -p wasi-crypto-symmetric --target wasm32-wasip2
 cargo test -p wasi-crypto-signatures --target wasm32-wasip2
 cargo test -p wasi-crypto-kx --target wasm32-wasip2
-cargo test -p wasi-crypto-asymmetric-common --target wasm32-wasip2
 cargo test -p wasi-crypto-in-place --target wasm32-wasip2
 ```
 

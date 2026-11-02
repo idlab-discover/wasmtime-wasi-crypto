@@ -5,8 +5,9 @@ use rkyv::rancor;
 use zeroize::Zeroize;
 
 use crate::{
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
-        CryptoErrno, KeypairEncoding, PublickeyEncoding, Signature,
+    bindings::wasi::crypto::{
+        common::{CryptoErrno, KeypairEncoding, PublickeyEncoding},
+        signatures::Signature,
     },
     error::CryptoResult,
     signatures::{

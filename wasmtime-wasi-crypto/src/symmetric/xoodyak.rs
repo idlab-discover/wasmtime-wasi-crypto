@@ -1,15 +1,13 @@
 use subtle::ConstantTimeEq;
 use zeroize::Zeroize;
 
-use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_symmetric::SymmetricTag;
+use crate::bindings::wasi::crypto::symmetric::SymmetricTag;
 use crate::error::CryptoResult;
 use crate::options::OptionsLike;
 use crate::rand::SecureRandom;
 use crate::symmetric::key::SymmetricKeyBuilder;
 use crate::{
-    bindings::wasi::crypto::{
-        wasi_ephemeral_crypto_common::CryptoErrno, wasi_ephemeral_crypto_symmetric::SymmetricKey,
-    },
+    bindings::wasi::crypto::{common::CryptoErrno, symmetric::SymmetricKey},
     symmetric::{
         SymmetricAlgorithm, SymmetricOptions, key::SymmetricKeyLike, state::SymmetricStateLike,
     },

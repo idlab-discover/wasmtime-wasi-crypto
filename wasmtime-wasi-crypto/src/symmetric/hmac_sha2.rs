@@ -3,8 +3,8 @@ use zeroize::Zeroize;
 
 use crate::{
     bindings::wasi::crypto::{
-        wasi_ephemeral_crypto_common::CryptoErrno,
-        wasi_ephemeral_crypto_symmetric::{SymmetricKey, SymmetricTag},
+        common::CryptoErrno,
+        symmetric::{SymmetricKey, SymmetricTag},
     },
     error::CryptoResult,
     options::OptionsLike,

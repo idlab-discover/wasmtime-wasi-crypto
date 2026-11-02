@@ -4,10 +4,10 @@ members = [
   "wasmtime-wasi-crypto",
   "wasmtime-host",
   "test-components/wasi-crypto-common",
+  "test-components/wasi-crypto-secrets-manager",
   "test-components/wasi-crypto-symmetric",
   "test-components/wasi-crypto-signatures",
   "test-components/wasi-crypto-kx",
-  "test-components/wasi-crypto-asymmetric-common",
   "test-components/wasi-crypto-in-place",
 ]
 

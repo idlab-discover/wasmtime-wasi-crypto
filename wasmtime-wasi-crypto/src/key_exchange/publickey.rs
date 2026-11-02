@@ -1,7 +1,7 @@
 #[cfg(feature = "pqcrypto")]
 use crate::key_exchange::kem::{MlKemPublicKeyBuilder, XWingPublicKeyBuilder};
 use crate::{
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::{CryptoErrno, PublickeyEncoding},
+    bindings::wasi::crypto::common::{CryptoErrno, PublickeyEncoding},
     error::CryptoResult,
     key_exchange::{KxAlgorithm, dh::X25519PublicKeyBuilder, kem::EncapsulatedSecret},
 };

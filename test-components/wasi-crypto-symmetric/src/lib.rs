@@ -1,40 +1,88 @@
+// The world imports only the interfaces under test, so these tests also run
+// against a host that provides just those (and their dependencies).
 wit_bindgen::generate!({
-    world: "imports",
     path: "../../spec/wit",
-    with: {
-        "wasi:crypto/wasi-ephemeral-crypto-asymmetric-common@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-common@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-external-secrets@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-kx@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-signatures@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-symmetric@0.11.0": generate,
+    inline: "
+        package wasi-crypto-tests:symmetric;
 
-    },
+        world symmetric-tests {
+            import wasi:crypto/symmetric@0.12.0;
+            import wasi:crypto/symmetric-managed@0.12.0;
+        }
+    ",
+    world: "symmetric-tests",
+    // The world is in its own test package, so the `wasi:crypto` interfaces
+    // it imports need bindings generated explicitly.
+    generate_all,
 });
 
+// This component covers the `symmetric` and `symmetric-managed` interfaces.
 #[cfg(test)]
 mod tests {
-    use crate::wasi::crypto::wasi_ephemeral_crypto_common::{
-        AlgorithmType, CryptoErrno, SecretsManager, Version, options_open, options_set,
-        secrets_manager_open,
+    // wit-bindgen re-exports every `use`d type inside each interface module,
+    // so each type is imported from the interface that declares it; glob
+    // imports from several modules would be ambiguous.
+    use crate::wasi::crypto::common::{ArrayOutput, CryptoErrno, Version};
+    use crate::wasi::crypto::secrets_manager::SecretsManager;
+    use crate::wasi::crypto::symmetric::{
+        SymmetricKey, SymmetricOptions, SymmetricState, SymmetricTag,
     };
-    use crate::wasi::crypto::wasi_ephemeral_crypto_symmetric::*;
+    use crate::wasi::crypto::symmetric_managed;
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
     fn generate(alg: &str) -> SymmetricKey {
-        symmetric_key_generate(alg, None)
-            .unwrap_or_else(|e| panic!("symmetric_key_generate({alg}) failed: {e:?}"))
+        SymmetricKey::generate(alg, None)
+            .unwrap_or_else(|e| panic!("SymmetricKey::generate({alg}) failed: {e:?}"))
     }
 
     fn import(alg: &str, raw: &[u8]) -> SymmetricKey {
-        symmetric_key_import(alg, raw)
-            .unwrap_or_else(|e| panic!("symmetric_key_import({alg}) failed: {e:?}"))
+        SymmetricKey::import(alg, raw)
+            .unwrap_or_else(|e| panic!("SymmetricKey::import({alg}) failed: {e:?}"))
     }
 
     fn open(alg: &str, key: Option<&SymmetricKey>) -> SymmetricState {
-        symmetric_state_open(alg, key, None)
-            .unwrap_or_else(|e| panic!("symmetric_state_open({alg}) failed: {e:?}"))
+        SymmetricState::open(alg, key, None)
+            .unwrap_or_else(|e| panic!("SymmetricState::open({alg}) failed: {e:?}"))
+    }
+
+    // ── options ───────────────────────────────────────────────────────────────
+
+    #[test]
+    fn options_open_drop_symmetric() {
+        let opts = SymmetricOptions::new();
+        drop(opts);
+    }
+
+    #[test]
+    fn options_set_u64_threads() {
+        let opts = SymmetricOptions::new();
+        match opts.set_u64("threads", 1) {
+            Ok(()) | Err(CryptoErrno::UnsupportedOption) => {}
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+        drop(opts);
+    }
+
+    #[test]
+    fn options_set_context_bytes() {
+        let opts = SymmetricOptions::new();
+        match opts.set("context", b"test-context") {
+            Ok(()) | Err(CryptoErrno::UnsupportedOption) => {}
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+        drop(opts);
+    }
+
+    #[test]
+    fn options_set_rejects_garbage_name() {
+        let opts = SymmetricOptions::new();
+        match opts.set_u64("__not_a_real_option__", 0) {
+            Err(CryptoErrno::UnsupportedOption) => {}
+            Ok(()) => panic!("host accepted garbage option name"),
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+        drop(opts);
     }
 
     // ── key lifecycle ─────────────────────────────────────────────────────────
@@ -54,9 +102,8 @@ mod tests {
     #[test]
     fn key_export_produces_array_output() {
         let key = import("HMAC/SHA-256", b"0123456789abcdef0123456789abcdef");
-        let array_out = symmetric_key_export(&key).unwrap();
-        let bytes = crate::wasi::crypto::wasi_ephemeral_crypto_common::array_output_pull(array_out)
-            .unwrap();
+        let array_out = key.export().unwrap();
+        let bytes = ArrayOutput::pull(array_out).unwrap();
         assert_eq!(bytes, b"0123456789abcdef0123456789abcdef");
     }
 
@@ -64,17 +111,15 @@ mod tests {
     fn key_export_round_trips_raw_material() {
         let raw = b"aaaabbbbccccddddaaaabbbbccccdddd";
         let key = import("HMAC/SHA-256", raw);
-        let array_out = symmetric_key_export(&key).unwrap();
-        let exported =
-            crate::wasi::crypto::wasi_ephemeral_crypto_common::array_output_pull(array_out)
-                .unwrap();
+        let array_out = key.export().unwrap();
+        let exported = ArrayOutput::pull(array_out).unwrap();
         assert_eq!(exported.as_slice(), raw.as_slice());
         drop(key);
     }
 
     #[test]
     fn key_generate_unsupported_algorithm() {
-        match symmetric_key_generate("__not_a_real_algo__", None) {
+        match SymmetricKey::generate("__not_a_real_algo__", None) {
             Err(CryptoErrno::UnsupportedAlgorithm) => {}
             Ok(_) => panic!("should have rejected unknown algorithm"),
             Err(e) => panic!("unexpected error: {e:?}"),
@@ -92,7 +137,7 @@ mod tests {
     #[test]
     fn state_open_drop_with_key() {
         let key = generate("HMAC/SHA-256");
-        let state = symmetric_state_open("HMAC/SHA-256", Some(&key), None).unwrap();
+        let state = SymmetricState::open("HMAC/SHA-256", Some(&key), None).unwrap();
         drop(state);
         drop(key);
     }
@@ -101,7 +146,7 @@ mod tests {
     fn state_open_key_not_supported() {
         // Hash functions do not accept keys; providing one must return invalid_key.
         let key = import("HMAC/SHA-256", b"0123456789abcdef0123456789abcdef");
-        match symmetric_state_open("SHA-256", Some(&key), None) {
+        match SymmetricState::open("SHA-256", Some(&key), None) {
             Err(CryptoErrno::InvalidKey) => {}
             Ok(s) => {
                 drop(s);
@@ -115,7 +160,7 @@ mod tests {
     #[test]
     fn state_open_key_required() {
         // MAC functions require a key; omitting one must return key_required.
-        match symmetric_state_open("HMAC/SHA-256", None, None) {
+        match SymmetricState::open("HMAC/SHA-256", None, None) {
             Err(CryptoErrno::KeyRequired) => {}
             Ok(s) => {
                 drop(s);
@@ -128,12 +173,12 @@ mod tests {
     #[test]
     fn state_clone() {
         let key = generate("HMAC/SHA-256");
-        let state = symmetric_state_open("HMAC/SHA-256", Some(&key), None).unwrap();
-        symmetric_state_absorb(&state, b"hello").unwrap();
-        let clone = symmetric_state_clone(&state).unwrap();
+        let state = SymmetricState::open("HMAC/SHA-256", Some(&key), None).unwrap();
+        state.absorb(b"hello").unwrap();
+        let clone = state.clone().unwrap();
         // Both handles share the same underlying state: verify the clone produces a valid-length tag.
-        let tag_clone = symmetric_state_squeeze_tag(&clone).unwrap();
-        let raw_clone = symmetric_tag_pull(tag_clone).unwrap();
+        let tag_clone = clone.squeeze_tag().unwrap();
+        let raw_clone = SymmetricTag::pull(tag_clone).unwrap();
         assert_eq!(raw_clone.len(), 32); // HMAC/SHA-256 produces 32 bytes
         drop(key);
     }
@@ -143,9 +188,9 @@ mod tests {
     #[test]
     fn hash_shake128_absorb_squeeze() {
         let state = open("SHA-256", None);
-        symmetric_state_absorb(&state, b"data").unwrap();
-        symmetric_state_absorb(&state, b"more_data").unwrap();
-        let out = symmetric_state_squeeze(&state).unwrap();
+        state.absorb(b"data").unwrap();
+        state.absorb(b"more_data").unwrap();
+        let out = state.squeeze().unwrap();
         assert_eq!(out.len(), 32); // SHA-256 always produces 32 bytes
     }
 
@@ -153,8 +198,8 @@ mod tests {
     fn hash_same_input_same_output() {
         let digest = |data: &[u8]| {
             let state = open("SHA-256", None);
-            symmetric_state_absorb(&state, data).unwrap();
-            symmetric_state_squeeze(&state).unwrap()
+            state.absorb(data).unwrap();
+            state.squeeze().unwrap()
         };
         assert_eq!(digest(b"hello"), digest(b"hello"));
         assert_ne!(digest(b"hello"), digest(b"world"));
@@ -166,11 +211,11 @@ mod tests {
     fn mac_hmac_sha512_compute_and_pull() {
         // Adapted from the "MAC" doc example.
         let key = import("HMAC/SHA-512", b"key");
-        let state = symmetric_state_open("HMAC/SHA-512", Some(&key), None).unwrap();
-        symmetric_state_absorb(&state, b"data").unwrap();
-        symmetric_state_absorb(&state, b"more_data").unwrap();
-        let tag = symmetric_state_squeeze_tag(&state).unwrap();
-        let raw = symmetric_tag_pull(tag).unwrap();
+        let state = SymmetricState::open("HMAC/SHA-512", Some(&key), None).unwrap();
+        state.absorb(b"data").unwrap();
+        state.absorb(b"more_data").unwrap();
+        let tag = state.squeeze_tag().unwrap();
+        let raw = SymmetricTag::pull(tag).unwrap();
         assert_eq!(raw.len(), 64); // HMAC/SHA-512 produces 64 bytes
         drop(key);
     }
@@ -178,9 +223,9 @@ mod tests {
     #[test]
     fn mac_tag_len() {
         let key = import("HMAC/SHA-256", b"0123456789abcdef0123456789abcdef");
-        let state = symmetric_state_open("HMAC/SHA-256", Some(&key), None).unwrap();
-        let tag = symmetric_state_squeeze_tag(&state).unwrap();
-        let len = symmetric_tag_len(&tag).unwrap();
+        let state = SymmetricState::open("HMAC/SHA-256", Some(&key), None).unwrap();
+        let tag = state.squeeze_tag().unwrap();
+        let len = tag.len().unwrap();
         assert_eq!(len, 32);
         drop(tag);
         drop(key);
@@ -192,18 +237,18 @@ mod tests {
         let key = import("HMAC/SHA-512", b"key");
 
         // Compute reference tag.
-        let state = symmetric_state_open("HMAC/SHA-512", Some(&key), None).unwrap();
-        symmetric_state_absorb(&state, b"data").unwrap();
-        symmetric_state_absorb(&state, b"more_data").unwrap();
-        let tag = symmetric_state_squeeze_tag(&state).unwrap();
-        let expected = symmetric_tag_pull(tag).unwrap();
+        let state = SymmetricState::open("HMAC/SHA-512", Some(&key), None).unwrap();
+        state.absorb(b"data").unwrap();
+        state.absorb(b"more_data").unwrap();
+        let tag = state.squeeze_tag().unwrap();
+        let expected = SymmetricTag::pull(tag).unwrap();
 
         // Verify against the same input.
-        let state2 = symmetric_state_open("HMAC/SHA-512", Some(&key), None).unwrap();
-        symmetric_state_absorb(&state2, b"data").unwrap();
-        symmetric_state_absorb(&state2, b"more_data").unwrap();
-        let tag2 = symmetric_state_squeeze_tag(&state2).unwrap();
-        symmetric_tag_verify(&tag2, &expected).unwrap();
+        let state2 = SymmetricState::open("HMAC/SHA-512", Some(&key), None).unwrap();
+        state2.absorb(b"data").unwrap();
+        state2.absorb(b"more_data").unwrap();
+        let tag2 = state2.squeeze_tag().unwrap();
+        tag2.verify(&expected).unwrap();
 
         drop(key);
     }
@@ -211,11 +256,11 @@ mod tests {
     #[test]
     fn mac_verify_wrong_tag_returns_invalid_tag() {
         let key = import("HMAC/SHA-256", b"0123456789abcdef0123456789abcdef");
-        let state = symmetric_state_open("HMAC/SHA-256", Some(&key), None).unwrap();
-        symmetric_state_absorb(&state, b"data").unwrap();
-        let tag = symmetric_state_squeeze_tag(&state).unwrap();
+        let state = SymmetricState::open("HMAC/SHA-256", Some(&key), None).unwrap();
+        state.absorb(b"data").unwrap();
+        let tag = state.squeeze_tag().unwrap();
         let wrong = vec![0u8; 32];
-        match symmetric_tag_verify(&tag, &wrong) {
+        match tag.verify(&wrong) {
             Err(CryptoErrno::InvalidTag) => {}
             Ok(()) => panic!("wrong tag should not verify"),
             Err(e) => panic!("unexpected error: {e:?}"),
@@ -226,8 +271,8 @@ mod tests {
     #[test]
     fn mac_tag_drop_explicit() {
         let key = import("HMAC/SHA-256", b"0123456789abcdef0123456789abcdef");
-        let state = symmetric_state_open("HMAC/SHA-256", Some(&key), None).unwrap();
-        let tag = symmetric_state_squeeze_tag(&state).unwrap();
+        let state = SymmetricState::open("HMAC/SHA-256", Some(&key), None).unwrap();
+        let tag = state.squeeze_tag().unwrap();
         drop(tag);
         drop(key);
     }
@@ -238,15 +283,15 @@ mod tests {
     fn blake3_xof_two_squeezes_differ() {
         let key = import("HMAC/SHA-256", b"aaaabbbbccccddddaaaabbbbccccdddd");
         let state = open("HMAC/SHA-256", Some(&key));
-        symmetric_state_absorb(&state, b"context").unwrap();
-        let tag = symmetric_state_squeeze_tag(&state).unwrap();
-        let raw = symmetric_tag_pull(tag).unwrap();
+        state.absorb(b"context").unwrap();
+        let tag = state.squeeze_tag().unwrap();
+        let raw = SymmetricTag::pull(tag).unwrap();
         assert_eq!(raw.len(), 32); // HMAC/SHA-256 tag is 32 bytes
         // Repeat with different input — must produce a different tag.
         let state2 = open("HMAC/SHA-256", Some(&key));
-        symmetric_state_absorb(&state2, b"other_context").unwrap();
-        let tag2 = symmetric_state_squeeze_tag(&state2).unwrap();
-        let raw2 = symmetric_tag_pull(tag2).unwrap();
+        state2.absorb(b"other_context").unwrap();
+        let tag2 = state2.squeeze_tag().unwrap();
+        let raw2 = SymmetricTag::pull(tag2).unwrap();
         assert_ne!(raw, raw2);
         drop(key);
     }
@@ -257,13 +302,13 @@ mod tests {
     fn hkdf_extract_and_expand() {
         // Adapted from the "Key derivation using extract-and-expand" doc example.
         let ikm = import("HKDF-EXTRACT/SHA-512", b"input_key_material");
-        let extract_state = symmetric_state_open("HKDF-EXTRACT/SHA-512", Some(&ikm), None).unwrap();
-        symmetric_state_absorb(&extract_state, b"salt").unwrap();
-        let prk = symmetric_state_squeeze_key(&extract_state, "HKDF-EXPAND/SHA-512").unwrap();
+        let extract_state = SymmetricState::open("HKDF-EXTRACT/SHA-512", Some(&ikm), None).unwrap();
+        extract_state.absorb(b"salt").unwrap();
+        let prk = extract_state.squeeze_key("HKDF-EXPAND/SHA-512").unwrap();
 
-        let expand_state = symmetric_state_open("HKDF-EXPAND/SHA-512", Some(&prk), None).unwrap();
-        symmetric_state_absorb(&expand_state, b"info").unwrap();
-        let subkey = symmetric_state_squeeze(&expand_state).unwrap();
+        let expand_state = SymmetricState::open("HKDF-EXPAND/SHA-512", Some(&prk), None).unwrap();
+        expand_state.absorb(b"info").unwrap();
+        let subkey = expand_state.squeeze().unwrap();
         assert!(!subkey.is_empty());
 
         drop(ikm);
@@ -282,21 +327,21 @@ mod tests {
         let key = generate("AES-256-GCM");
 
         // Encrypt
-        let opts = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts, "nonce", &nonce).unwrap();
-        let enc_state = symmetric_state_open("AES-256-GCM", Some(&key), Some(&opts)).unwrap();
+        let opts = SymmetricOptions::new();
+        opts.set("nonce", &nonce).unwrap();
+        let enc_state = SymmetricState::open("AES-256-GCM", Some(&key), Some(&opts)).unwrap();
         drop(opts);
-        symmetric_state_absorb(&enc_state, aad).unwrap();
-        let ciphertext = symmetric_state_encrypt(&enc_state, message).unwrap();
+        enc_state.absorb(aad).unwrap();
+        let ciphertext = enc_state.encrypt(message).unwrap();
 
         // Decrypt
-        let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts2, "nonce", &nonce).unwrap();
-        let dec_state = symmetric_state_open("AES-256-GCM", Some(&key), Some(&opts2)).unwrap();
+        let opts2 = SymmetricOptions::new();
+        opts2.set("nonce", &nonce).unwrap();
+        let dec_state = SymmetricState::open("AES-256-GCM", Some(&key), Some(&opts2)).unwrap();
         drop(opts2);
-        symmetric_state_absorb(&dec_state, aad).unwrap();
+        dec_state.absorb(aad).unwrap();
         let out_len = message.len();
-        let plaintext = symmetric_state_decrypt(&dec_state, &ciphertext, out_len as u32).unwrap();
+        let plaintext = dec_state.decrypt(&ciphertext, out_len as u32).unwrap();
 
         assert_eq!(plaintext, message);
         drop(key);
@@ -307,22 +352,22 @@ mod tests {
         let nonce = [0u8; 12];
         let key = generate("AES-256-GCM");
 
-        let opts = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts, "nonce", &nonce).unwrap();
-        let enc_state = symmetric_state_open("AES-256-GCM", Some(&key), Some(&opts)).unwrap();
+        let opts = SymmetricOptions::new();
+        opts.set("nonce", &nonce).unwrap();
+        let enc_state = SymmetricState::open("AES-256-GCM", Some(&key), Some(&opts)).unwrap();
         drop(opts);
-        let mut ciphertext = symmetric_state_encrypt(&enc_state, b"hello").unwrap();
+        let mut ciphertext = enc_state.encrypt(b"hello").unwrap();
 
         // Corrupt the tag (last 16 bytes for GCM)
         let len = ciphertext.len();
         ciphertext[len - 1] ^= 0xff;
 
-        let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts2, "nonce", &nonce).unwrap();
-        let dec_state = symmetric_state_open("AES-256-GCM", Some(&key), Some(&opts2)).unwrap();
+        let opts2 = SymmetricOptions::new();
+        opts2.set("nonce", &nonce).unwrap();
+        let dec_state = SymmetricState::open("AES-256-GCM", Some(&key), Some(&opts2)).unwrap();
         drop(opts2);
         let out_len = (ciphertext.len() - 16) as u32; // AES-GCM tag is 16 bytes
-        match symmetric_state_decrypt(&dec_state, &ciphertext, out_len) {
+        match dec_state.decrypt(&ciphertext, out_len) {
             Err(CryptoErrno::InvalidTag) => {}
             Ok(_) => panic!("corrupted ciphertext should not decrypt"),
             Err(e) => panic!("unexpected error: {e:?}"),
@@ -336,11 +381,11 @@ mod tests {
     fn aead_auto_nonce_retrievable_via_options_get() {
         let nonce = [0xabu8; 12];
         let key = generate("AES-256-GCM");
-        let opts = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts, "nonce", &nonce).unwrap();
-        let state = symmetric_state_open("AES-256-GCM", Some(&key), Some(&opts)).unwrap();
+        let opts = SymmetricOptions::new();
+        opts.set("nonce", &nonce).unwrap();
+        let state = SymmetricState::open("AES-256-GCM", Some(&key), Some(&opts)).unwrap();
         drop(opts);
-        let nonce_buf = symmetric_state_options_get(&state, "nonce").unwrap();
+        let nonce_buf = state.options_get("nonce").unwrap();
         assert_eq!(
             nonce_buf, nonce,
             "nonce retrieved from state must match the one set"
@@ -357,19 +402,18 @@ mod tests {
         let message = b"detached test";
         let key = generate("AES-256-GCM");
 
-        let opts = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts, "nonce", &nonce).unwrap();
-        let enc_state = symmetric_state_open("AES-256-GCM", Some(&key), Some(&opts)).unwrap();
+        let opts = SymmetricOptions::new();
+        opts.set("nonce", &nonce).unwrap();
+        let enc_state = SymmetricState::open("AES-256-GCM", Some(&key), Some(&opts)).unwrap();
         drop(opts);
-        let (ciphertext, tag) = symmetric_state_encrypt_detached(&enc_state, message).unwrap();
-        let raw_tag = symmetric_tag_pull(tag).unwrap();
+        let (ciphertext, tag) = enc_state.encrypt_detached(message).unwrap();
+        let raw_tag = SymmetricTag::pull(tag).unwrap();
 
-        let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts2, "nonce", &nonce).unwrap();
-        let dec_state = symmetric_state_open("AES-256-GCM", Some(&key), Some(&opts2)).unwrap();
+        let opts2 = SymmetricOptions::new();
+        opts2.set("nonce", &nonce).unwrap();
+        let dec_state = SymmetricState::open("AES-256-GCM", Some(&key), Some(&opts2)).unwrap();
         drop(opts2);
-        let plaintext =
-            symmetric_state_decrypt_detached(&dec_state, &ciphertext, &raw_tag).unwrap();
+        let plaintext = dec_state.decrypt_detached(&ciphertext, &raw_tag).unwrap();
 
         assert_eq!(plaintext, message);
         drop(key);
@@ -380,11 +424,11 @@ mod tests {
     #[test]
     fn aead_max_tag_len_nonzero_for_gcm() {
         let key = generate("AES-256-GCM");
-        let opts = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts, "nonce", &[0u8; 12]).unwrap();
-        let state = symmetric_state_open("AES-256-GCM", Some(&key), Some(&opts)).unwrap();
+        let opts = SymmetricOptions::new();
+        opts.set("nonce", &[0u8; 12]).unwrap();
+        let state = SymmetricState::open("AES-256-GCM", Some(&key), Some(&opts)).unwrap();
         drop(opts);
-        let tag_len = symmetric_state_max_tag_len(&state).unwrap();
+        let tag_len = state.max_tag_len().unwrap();
         assert_eq!(tag_len, 16); // GCM tag is always 16 bytes
         drop(state);
         drop(key);
@@ -395,7 +439,7 @@ mod tests {
     #[test]
     fn state_options_get_u64_unsupported_returns_error() {
         let state = open("SHA-256", None);
-        match symmetric_state_options_get_u64(&state, "__nonexistent__") {
+        match state.options_get_u64("__nonexistent__") {
             Err(CryptoErrno::UnsupportedOption) | Err(CryptoErrno::OptionNotSet) => {}
             Ok(v) => panic!("should not return a value for unknown option, got {v}"),
             Err(e) => panic!("unexpected error: {e:?}"),
@@ -406,7 +450,7 @@ mod tests {
     // ── managed key operations ────────────────────────────────────────────────
     //
     // Managed keys need a secrets manager, which the host doesn't implement:
-    // `secrets_manager_open` returns `UnsupportedFeature`. `#[should_panic]`
+    // `SecretsManager::open` returns `UnsupportedFeature`. `#[should_panic]`
     // can't express that on wasm: libtest ignores such tests without running
     // them, and the runner reports the ignored test as passed. So these tests
     // run, accept exactly `UnsupportedFeature` from `open`, and only exercise
@@ -416,7 +460,7 @@ mod tests {
     /// `UnsupportedFeature`. Any other error fails the test.
     // TODO: assert that `open` succeeds once the host implements a secrets manager.
     fn open_secrets_manager() -> Option<SecretsManager> {
-        match secrets_manager_open(None) {
+        match SecretsManager::open(None) {
             Ok(sm) => Some(sm),
             Err(CryptoErrno::UnsupportedFeature) => {
                 eprintln!("secrets manager unsupported by the host; rest of the test skipped");
@@ -431,9 +475,9 @@ mod tests {
         let Some(sm) = open_secrets_manager() else {
             return;
         };
-        let key = symmetric_key_generate_managed(&sm, "HMAC/SHA-256", None).unwrap();
-        let key_id = symmetric_key_store_managed(&sm, &key).unwrap();
-        let retrieved = symmetric_key_from_id(&sm, &key_id, Version::Latest).unwrap();
+        let key = symmetric_managed::generate_managed(&sm, "HMAC/SHA-256", None).unwrap();
+        let key_id = symmetric_managed::store_managed(&sm, &key).unwrap();
+        let retrieved = symmetric_managed::from_id(&sm, &key_id, Version::Latest).unwrap();
         drop(key);
         drop(retrieved);
         drop(sm);
@@ -444,8 +488,8 @@ mod tests {
         let Some(sm) = open_secrets_manager() else {
             return;
         };
-        let key = symmetric_key_generate_managed(&sm, "HMAC/SHA-256", None).unwrap();
-        let (id, version) = symmetric_key_id(&key).unwrap();
+        let key = symmetric_managed::generate_managed(&sm, "HMAC/SHA-256", None).unwrap();
+        let (id, version) = symmetric_managed::id(&key).unwrap();
         assert!(!id.is_empty());
         // Version::Latest has a known numeric representation; any non-zero value is valid
         let _ = version;
@@ -458,9 +502,9 @@ mod tests {
         let Some(sm) = open_secrets_manager() else {
             return;
         };
-        let old = symmetric_key_generate_managed(&sm, "HMAC/SHA-256", None).unwrap();
-        let new = symmetric_key_generate_managed(&sm, "HMAC/SHA-256", None).unwrap();
-        let _new_version = symmetric_key_replace_managed(&sm, old, &new).unwrap();
+        let old = symmetric_managed::generate_managed(&sm, "HMAC/SHA-256", None).unwrap();
+        let new = symmetric_managed::generate_managed(&sm, "HMAC/SHA-256", None).unwrap();
+        let _new_version = symmetric_managed::replace_managed(&sm, old, &new).unwrap();
         drop(new);
         drop(sm);
     }
@@ -468,7 +512,7 @@ mod tests {
     #[test]
     fn unmanaged_key_id_returns_unsupported_feature() {
         let key = generate("HMAC/SHA-256");
-        match symmetric_key_id(&key) {
+        match symmetric_managed::id(&key) {
             Err(CryptoErrno::UnsupportedFeature) => {}
             Ok(_) => panic!("unmanaged key should not have an id"),
             Err(e) => panic!("unexpected error: {e:?}"),
@@ -481,16 +525,16 @@ mod tests {
     #[test]
     fn hash_sha384_absorb_squeeze() {
         let state = open("SHA-384", None);
-        symmetric_state_absorb(&state, b"data").unwrap();
-        let out = symmetric_state_squeeze(&state).unwrap();
+        state.absorb(b"data").unwrap();
+        let out = state.squeeze().unwrap();
         assert_eq!(out.len(), 48, "SHA-384 always produces 48 bytes");
     }
 
     #[test]
     fn hash_sha512_absorb_squeeze() {
         let state = open("SHA-512", None);
-        symmetric_state_absorb(&state, b"data").unwrap();
-        let out = symmetric_state_squeeze(&state).unwrap();
+        state.absorb(b"data").unwrap();
+        let out = state.squeeze().unwrap();
         assert_eq!(out.len(), 64, "SHA-512 always produces 64 bytes");
     }
 
@@ -500,8 +544,8 @@ mod tests {
         // For "abc" the expected digest is 53048e26...
         // Plain SHA-512 truncated to 32 bytes would be ddaf35..., which must NOT appear.
         let state = open("SHA-512/256", None);
-        symmetric_state_absorb(&state, b"abc").unwrap();
-        let out = symmetric_state_squeeze(&state).unwrap();
+        state.absorb(b"abc").unwrap();
+        let out = state.squeeze().unwrap();
         assert_eq!(out.len(), 32);
         let expected = [
             0x53, 0x04, 0x8e, 0x26, 0x81, 0x94, 0x1e, 0xf9, 0x9b, 0x2e, 0x29, 0xb7, 0x6b, 0x4c,
@@ -527,9 +571,9 @@ mod tests {
     fn hash_sha256_known_answer() {
         // Known digest for "data" || "more_data" from the WITX reference test_hash.
         let state = open("SHA-256", None);
-        symmetric_state_absorb(&state, b"data").unwrap();
-        symmetric_state_absorb(&state, b"more_data").unwrap();
-        let out = symmetric_state_squeeze(&state).unwrap();
+        state.absorb(b"data").unwrap();
+        state.absorb(b"more_data").unwrap();
+        let out = state.squeeze().unwrap();
         let expected: [u8; 32] = [
             19, 196, 14, 236, 34, 84, 26, 21, 94, 23, 32, 16, 199, 253, 110, 246, 84, 228, 225, 56,
             160, 194, 9, 35, 249, 169, 16, 98, 162, 127, 87, 182,
@@ -542,13 +586,13 @@ mod tests {
     #[test]
     fn hkdf_sha256_extract_and_expand() {
         let ikm = import("HKDF-EXTRACT/SHA-256", b"input_key_material");
-        let extract_state = symmetric_state_open("HKDF-EXTRACT/SHA-256", Some(&ikm), None).unwrap();
-        symmetric_state_absorb(&extract_state, b"salt").unwrap();
-        let prk = symmetric_state_squeeze_key(&extract_state, "HKDF-EXPAND/SHA-256").unwrap();
+        let extract_state = SymmetricState::open("HKDF-EXTRACT/SHA-256", Some(&ikm), None).unwrap();
+        extract_state.absorb(b"salt").unwrap();
+        let prk = extract_state.squeeze_key("HKDF-EXPAND/SHA-256").unwrap();
 
-        let expand_state = symmetric_state_open("HKDF-EXPAND/SHA-256", Some(&prk), None).unwrap();
-        symmetric_state_absorb(&expand_state, b"info").unwrap();
-        let subkey = symmetric_state_squeeze(&expand_state).unwrap();
+        let expand_state = SymmetricState::open("HKDF-EXPAND/SHA-256", Some(&prk), None).unwrap();
+        expand_state.absorb(b"info").unwrap();
+        let subkey = expand_state.squeeze().unwrap();
         assert_eq!(subkey.len(), 32, "HKDF-EXPAND/SHA-256 OKM is 32 bytes");
 
         drop(ikm);
@@ -563,18 +607,19 @@ mod tests {
         let message = b"hello aes128";
         let key = generate("AES-128-GCM");
 
-        let opts = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts, "nonce", &nonce).unwrap();
-        let enc_state = symmetric_state_open("AES-128-GCM", Some(&key), Some(&opts)).unwrap();
+        let opts = SymmetricOptions::new();
+        opts.set("nonce", &nonce).unwrap();
+        let enc_state = SymmetricState::open("AES-128-GCM", Some(&key), Some(&opts)).unwrap();
         drop(opts);
-        let ciphertext = symmetric_state_encrypt(&enc_state, message).unwrap();
+        let ciphertext = enc_state.encrypt(message).unwrap();
 
-        let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts2, "nonce", &nonce).unwrap();
-        let dec_state = symmetric_state_open("AES-128-GCM", Some(&key), Some(&opts2)).unwrap();
+        let opts2 = SymmetricOptions::new();
+        opts2.set("nonce", &nonce).unwrap();
+        let dec_state = SymmetricState::open("AES-128-GCM", Some(&key), Some(&opts2)).unwrap();
         drop(opts2);
-        let plaintext =
-            symmetric_state_decrypt(&dec_state, &ciphertext, message.len() as u32).unwrap();
+        let plaintext = dec_state
+            .decrypt(&ciphertext, message.len() as u32)
+            .unwrap();
         assert_eq!(plaintext, message);
         drop(key);
     }
@@ -584,20 +629,20 @@ mod tests {
         let nonce = [0u8; 12];
         let key = generate("AES-128-GCM");
 
-        let opts = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts, "nonce", &nonce).unwrap();
-        let enc_state = symmetric_state_open("AES-128-GCM", Some(&key), Some(&opts)).unwrap();
+        let opts = SymmetricOptions::new();
+        opts.set("nonce", &nonce).unwrap();
+        let enc_state = SymmetricState::open("AES-128-GCM", Some(&key), Some(&opts)).unwrap();
         drop(opts);
-        let mut ciphertext = symmetric_state_encrypt(&enc_state, b"hello").unwrap();
+        let mut ciphertext = enc_state.encrypt(b"hello").unwrap();
         let len = ciphertext.len();
         ciphertext[len - 1] ^= 0xff;
 
-        let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts2, "nonce", &nonce).unwrap();
-        let dec_state = symmetric_state_open("AES-128-GCM", Some(&key), Some(&opts2)).unwrap();
+        let opts2 = SymmetricOptions::new();
+        opts2.set("nonce", &nonce).unwrap();
+        let dec_state = SymmetricState::open("AES-128-GCM", Some(&key), Some(&opts2)).unwrap();
         drop(opts2);
         let out_len = (ciphertext.len() - 16) as u32;
-        match symmetric_state_decrypt(&dec_state, &ciphertext, out_len) {
+        match dec_state.decrypt(&ciphertext, out_len) {
             Err(CryptoErrno::InvalidTag) => {}
             Ok(_) => panic!("corrupted ciphertext should not decrypt"),
             Err(e) => panic!("unexpected error: {e:?}"),
@@ -613,19 +658,20 @@ mod tests {
         let message = b"test chacha20";
         let key = generate("CHACHA20-POLY1305");
 
-        let opts = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts, "nonce", &nonce).unwrap();
-        let enc_state = symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
+        let opts = SymmetricOptions::new();
+        opts.set("nonce", &nonce).unwrap();
+        let enc_state = SymmetricState::open("CHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
         drop(opts);
-        let ciphertext = symmetric_state_encrypt(&enc_state, message).unwrap();
+        let ciphertext = enc_state.encrypt(message).unwrap();
 
-        let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts2, "nonce", &nonce).unwrap();
+        let opts2 = SymmetricOptions::new();
+        opts2.set("nonce", &nonce).unwrap();
         let dec_state =
-            symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
+            SymmetricState::open("CHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
         drop(opts2);
-        let plaintext =
-            symmetric_state_decrypt(&dec_state, &ciphertext, message.len() as u32).unwrap();
+        let plaintext = dec_state
+            .decrypt(&ciphertext, message.len() as u32)
+            .unwrap();
         assert_eq!(plaintext, message);
         drop(key);
     }
@@ -634,8 +680,8 @@ mod tests {
     fn aead_chacha20poly1305_key_len_is_32() {
         let key = generate("CHACHA20-POLY1305");
         let raw = {
-            let ao = symmetric_key_export(&key).unwrap();
-            crate::wasi::crypto::wasi_ephemeral_crypto_common::array_output_pull(ao).unwrap()
+            let ao = key.export().unwrap();
+            ArrayOutput::pull(ao).unwrap()
         };
         assert_eq!(raw.len(), 32, "ChaCha20-Poly1305 key is 32 bytes");
         drop(key);
@@ -646,21 +692,21 @@ mod tests {
         let nonce = [0u8; 12];
         let key = generate("CHACHA20-POLY1305");
 
-        let opts = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts, "nonce", &nonce).unwrap();
-        let enc_state = symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
+        let opts = SymmetricOptions::new();
+        opts.set("nonce", &nonce).unwrap();
+        let enc_state = SymmetricState::open("CHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
         drop(opts);
-        let mut ciphertext = symmetric_state_encrypt(&enc_state, b"hello").unwrap();
+        let mut ciphertext = enc_state.encrypt(b"hello").unwrap();
         let len = ciphertext.len();
         ciphertext[len - 1] ^= 0xff;
 
-        let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts2, "nonce", &nonce).unwrap();
+        let opts2 = SymmetricOptions::new();
+        opts2.set("nonce", &nonce).unwrap();
         let dec_state =
-            symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
+            SymmetricState::open("CHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
         drop(opts2);
         let out_len = (ciphertext.len() - 16) as u32;
-        match symmetric_state_decrypt(&dec_state, &ciphertext, out_len) {
+        match dec_state.decrypt(&ciphertext, out_len) {
             Err(CryptoErrno::InvalidTag) => {}
             Ok(_) => panic!("corrupted ciphertext should not decrypt"),
             Err(e) => panic!("unexpected error: {e:?}"),
@@ -674,20 +720,19 @@ mod tests {
         let message = b"detached chacha";
         let key = generate("CHACHA20-POLY1305");
 
-        let opts = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts, "nonce", &nonce).unwrap();
-        let enc_state = symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
+        let opts = SymmetricOptions::new();
+        opts.set("nonce", &nonce).unwrap();
+        let enc_state = SymmetricState::open("CHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
         drop(opts);
-        let (ciphertext, tag) = symmetric_state_encrypt_detached(&enc_state, message).unwrap();
-        let raw_tag = symmetric_tag_pull(tag).unwrap();
+        let (ciphertext, tag) = enc_state.encrypt_detached(message).unwrap();
+        let raw_tag = SymmetricTag::pull(tag).unwrap();
 
-        let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts2, "nonce", &nonce).unwrap();
+        let opts2 = SymmetricOptions::new();
+        opts2.set("nonce", &nonce).unwrap();
         let dec_state =
-            symmetric_state_open("CHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
+            SymmetricState::open("CHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
         drop(opts2);
-        let plaintext =
-            symmetric_state_decrypt_detached(&dec_state, &ciphertext, &raw_tag).unwrap();
+        let plaintext = dec_state.decrypt_detached(&ciphertext, &raw_tag).unwrap();
         assert_eq!(plaintext, message);
         drop(key);
     }
@@ -700,20 +745,21 @@ mod tests {
         let message = b"test xchacha20";
         let key = generate("XCHACHA20-POLY1305");
 
-        let opts = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts, "nonce", &nonce).unwrap();
+        let opts = SymmetricOptions::new();
+        opts.set("nonce", &nonce).unwrap();
         let enc_state =
-            symmetric_state_open("XCHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
+            SymmetricState::open("XCHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
         drop(opts);
-        let ciphertext = symmetric_state_encrypt(&enc_state, message).unwrap();
+        let ciphertext = enc_state.encrypt(message).unwrap();
 
-        let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts2, "nonce", &nonce).unwrap();
+        let opts2 = SymmetricOptions::new();
+        opts2.set("nonce", &nonce).unwrap();
         let dec_state =
-            symmetric_state_open("XCHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
+            SymmetricState::open("XCHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
         drop(opts2);
-        let plaintext =
-            symmetric_state_decrypt(&dec_state, &ciphertext, message.len() as u32).unwrap();
+        let plaintext = dec_state
+            .decrypt(&ciphertext, message.len() as u32)
+            .unwrap();
         assert_eq!(plaintext, message);
         drop(key);
     }
@@ -723,22 +769,22 @@ mod tests {
         let nonce = [0u8; 24];
         let key = generate("XCHACHA20-POLY1305");
 
-        let opts = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts, "nonce", &nonce).unwrap();
+        let opts = SymmetricOptions::new();
+        opts.set("nonce", &nonce).unwrap();
         let enc_state =
-            symmetric_state_open("XCHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
+            SymmetricState::open("XCHACHA20-POLY1305", Some(&key), Some(&opts)).unwrap();
         drop(opts);
-        let mut ciphertext = symmetric_state_encrypt(&enc_state, b"hello").unwrap();
+        let mut ciphertext = enc_state.encrypt(b"hello").unwrap();
         let len = ciphertext.len();
         ciphertext[len - 1] ^= 0xff;
 
-        let opts2 = options_open(AlgorithmType::Symmetric).unwrap();
-        options_set(&opts2, "nonce", &nonce).unwrap();
+        let opts2 = SymmetricOptions::new();
+        opts2.set("nonce", &nonce).unwrap();
         let dec_state =
-            symmetric_state_open("XCHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
+            SymmetricState::open("XCHACHA20-POLY1305", Some(&key), Some(&opts2)).unwrap();
         drop(opts2);
         let out_len = (ciphertext.len() - 16) as u32;
-        match symmetric_state_decrypt(&dec_state, &ciphertext, out_len) {
+        match dec_state.decrypt(&ciphertext, out_len) {
             Err(CryptoErrno::InvalidTag) => {}
             Ok(_) => panic!("corrupted ciphertext should not decrypt"),
             Err(e) => panic!("unexpected error: {e:?}"),
@@ -751,19 +797,19 @@ mod tests {
     #[test]
     fn xoodyak128_keyless_hash_squeeze() {
         let state = open("XOODYAK-128", None);
-        symmetric_state_absorb(&state, b"data").unwrap();
-        symmetric_state_absorb(&state, b"more_data").unwrap();
-        let out = symmetric_state_squeeze(&state).unwrap();
+        state.absorb(b"data").unwrap();
+        state.absorb(b"more_data").unwrap();
+        let out = state.squeeze().unwrap();
         assert!(!out.is_empty());
     }
 
     #[test]
     fn xoodyak128_squeeze_tag() {
         let key = generate("XOODYAK-128");
-        let state = symmetric_state_open("XOODYAK-128", Some(&key), None).unwrap();
-        symmetric_state_absorb(&state, b"data").unwrap();
-        let tag = symmetric_state_squeeze_tag(&state).unwrap();
-        let raw = symmetric_tag_pull(tag).unwrap();
+        let state = SymmetricState::open("XOODYAK-128", Some(&key), None).unwrap();
+        state.absorb(b"data").unwrap();
+        let tag = state.squeeze_tag().unwrap();
+        let raw = SymmetricTag::pull(tag).unwrap();
         assert!(!raw.is_empty());
         drop(key);
     }
@@ -773,11 +819,11 @@ mod tests {
         let msg = b"test xoodyak";
         let key = generate("XOODYAK-128");
 
-        let enc_state = symmetric_state_open("XOODYAK-128", Some(&key), None).unwrap();
-        let ciphertext = symmetric_state_encrypt(&enc_state, msg).unwrap();
+        let enc_state = SymmetricState::open("XOODYAK-128", Some(&key), None).unwrap();
+        let ciphertext = enc_state.encrypt(msg).unwrap();
 
-        let dec_state = symmetric_state_open("XOODYAK-128", Some(&key), None).unwrap();
-        let plaintext = symmetric_state_decrypt(&dec_state, &ciphertext, msg.len() as u32).unwrap();
+        let dec_state = SymmetricState::open("XOODYAK-128", Some(&key), None).unwrap();
+        let plaintext = dec_state.decrypt(&ciphertext, msg.len() as u32).unwrap();
         assert_eq!(plaintext, msg);
         drop(key);
     }
@@ -791,23 +837,23 @@ mod tests {
         let key = generate("XOODYAK-128");
 
         // Sender side
-        let sender = symmetric_state_open("XOODYAK-128", Some(&key), None).unwrap();
-        symmetric_state_absorb(&sender, b"data").unwrap();
-        let squeezed_sender1 = symmetric_state_squeeze(&sender).unwrap();
-        let ciphertext = symmetric_state_encrypt(&sender, msg).unwrap();
-        symmetric_state_absorb(&sender, b"more_data").unwrap();
-        symmetric_state_ratchet(&sender).unwrap();
-        let squeezed_sender2 = symmetric_state_squeeze(&sender).unwrap();
+        let sender = SymmetricState::open("XOODYAK-128", Some(&key), None).unwrap();
+        sender.absorb(b"data").unwrap();
+        let squeezed_sender1 = sender.squeeze().unwrap();
+        let ciphertext = sender.encrypt(msg).unwrap();
+        sender.absorb(b"more_data").unwrap();
+        sender.ratchet().unwrap();
+        let squeezed_sender2 = sender.squeeze().unwrap();
 
         // Receiver side
-        let receiver = symmetric_state_open("XOODYAK-128", Some(&key), None).unwrap();
-        symmetric_state_absorb(&receiver, b"data").unwrap();
-        let squeezed_receiver1 = symmetric_state_squeeze(&receiver).unwrap();
-        let plaintext = symmetric_state_decrypt(&receiver, &ciphertext, msg.len() as u32).unwrap();
+        let receiver = SymmetricState::open("XOODYAK-128", Some(&key), None).unwrap();
+        receiver.absorb(b"data").unwrap();
+        let squeezed_receiver1 = receiver.squeeze().unwrap();
+        let plaintext = receiver.decrypt(&ciphertext, msg.len() as u32).unwrap();
         assert_eq!(plaintext, msg);
-        symmetric_state_absorb(&receiver, b"more_data").unwrap();
-        symmetric_state_ratchet(&receiver).unwrap();
-        let squeezed_receiver2 = symmetric_state_squeeze(&receiver).unwrap();
+        receiver.absorb(b"more_data").unwrap();
+        receiver.ratchet().unwrap();
+        let squeezed_receiver2 = receiver.squeeze().unwrap();
 
         assert_eq!(
             squeezed_sender1, squeezed_receiver1,
@@ -827,11 +873,11 @@ mod tests {
         let msg = b"test xoodyak160";
         let key = generate("XOODYAK-160");
 
-        let enc_state = symmetric_state_open("XOODYAK-160", Some(&key), None).unwrap();
-        let ciphertext = symmetric_state_encrypt(&enc_state, msg).unwrap();
+        let enc_state = SymmetricState::open("XOODYAK-160", Some(&key), None).unwrap();
+        let ciphertext = enc_state.encrypt(msg).unwrap();
 
-        let dec_state = symmetric_state_open("XOODYAK-160", Some(&key), None).unwrap();
-        let plaintext = symmetric_state_decrypt(&dec_state, &ciphertext, msg.len() as u32).unwrap();
+        let dec_state = SymmetricState::open("XOODYAK-160", Some(&key), None).unwrap();
+        let plaintext = dec_state.decrypt(&ciphertext, msg.len() as u32).unwrap();
         assert_eq!(plaintext, msg);
         drop(key);
     }

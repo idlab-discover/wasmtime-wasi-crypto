@@ -1,7 +1,7 @@
 use crate::{
     bindings::wasi::crypto::{
-        wasi_ephemeral_crypto_common::{CryptoErrno, SymmetricTag},
-        wasi_ephemeral_crypto_symmetric::SymmetricKey,
+        common::CryptoErrno,
+        symmetric::{SymmetricKey, SymmetricTag},
     },
     error::CryptoResult,
     limits::Limits,

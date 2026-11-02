@@ -1,11 +1,10 @@
-use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
-    CryptoErrno, PublickeyEncoding, Signature,
-};
+use crate::bindings::wasi::crypto::common::{CryptoErrno, PublickeyEncoding};
+use crate::bindings::wasi::crypto::signatures::Signature;
 use crate::signatures::{SignatureAlgorithm, SignatureOptions};
 use derivative::Derivative;
 use std::sync::Arc;
 
-use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::KeypairEncoding;
+use crate::bindings::wasi::crypto::common::KeypairEncoding;
 use crate::error::CryptoResult;
 use crate::rand::SecureRandom;
 use crate::signatures::signature::{

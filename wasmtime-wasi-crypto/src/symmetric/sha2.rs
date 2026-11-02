@@ -1,9 +1,7 @@
 use ::sha2::{Digest, Sha256, Sha384, Sha512, Sha512_256};
 
 use crate::{
-    bindings::wasi::crypto::{
-        wasi_ephemeral_crypto_common::CryptoErrno, wasi_ephemeral_crypto_symmetric::SymmetricKey,
-    },
+    bindings::wasi::crypto::{common::CryptoErrno, symmetric::SymmetricKey},
     error::CryptoResult,
     options::OptionsLike,
     symmetric::{SymmetricAlgorithm, SymmetricOptions, state::SymmetricStateLike},

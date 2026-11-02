@@ -1,5 +1,5 @@
 /// This file is a complete copy of https://github.com/bytecodealliance/wasmtime/blob/a79c4b3afdf6d3678d2e2d0d4340b2fcafe7c85f/crates/wasi-http/src/p2/error.rs
-use crate::bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno;
+use crate::bindings::wasi::crypto::common::CryptoErrno;
 use std::error::Error;
 use std::fmt;
 use wasmtime::component::ResourceTableError;

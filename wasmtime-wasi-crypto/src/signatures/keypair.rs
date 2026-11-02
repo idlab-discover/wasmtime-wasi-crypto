@@ -1,6 +1,6 @@
 use crate::{
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::KeypairEncoding,
+    bindings::wasi::crypto::common::CryptoErrno,
+    bindings::wasi::crypto::common::KeypairEncoding,
     error::CryptoResult,
     signatures::{
         SignatureAlgorithm, SignatureAlgorithmFamily, SignatureOptions,
@@ -74,6 +74,19 @@ impl SignatureKeyPair {
     }
 
     pub(crate) fn secret_key(&self) -> CryptoResult<SignatureSecretKey> {
+        Err(CryptoErrno::NotImplemented.into())
+    }
+
+    /// Only checks that the two keys belong together.
+    // TODO: build the key pair once the per-algorithm key pairs can be
+    // assembled from their parts.
+    pub(crate) fn from_pk_and_sk(
+        pk: &SignaturePublicKey,
+        sk: &SignatureSecretKey,
+    ) -> CryptoResult<SignatureKeyPair> {
+        if pk.alg() != sk.alg() {
+            return Err(CryptoErrno::IncompatibleKeys.into());
+        }
         Err(CryptoErrno::NotImplemented.into())
     }
 }

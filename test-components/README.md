@@ -1,16 +1,18 @@
 # test-components
 
-Guest Wasm test binaries for `wasmtime-wasi-crypto`. Each crate is compiled to `wasm32-wasip2` and exercises one WIT interface via the `wasmtime-host test` runner.
+Guest Wasm test binaries for `wasmtime-wasi-crypto`. Each crate is compiled to `wasm32-wasip2` and exercises one WIT interface, or one algorithm family together with its managed-key interface, via the `wasmtime-host test` runner. `wasi-crypto-in-place` is the exception: it holds guest-memory regression tests for symmetric encryption.
+
+Each crate declares its own world (inline WIT passed to `wit_bindgen::generate!`) that imports only the interfaces it tests, so it can run against a host that provides just those interfaces.
 
 ## Running tests
 
 ```sh
 # From anywhere within the workspace:
 cargo test -p wasi-crypto-common --target wasm32-wasip2
+cargo test -p wasi-crypto-secrets-manager --target wasm32-wasip2
 cargo test -p wasi-crypto-symmetric --target wasm32-wasip2
 cargo test -p wasi-crypto-signatures --target wasm32-wasip2
 cargo test -p wasi-crypto-kx --target wasm32-wasip2
-cargo test -p wasi-crypto-asymmetric-common --target wasm32-wasip2
 cargo test -p wasi-crypto-in-place --target wasm32-wasip2
 ```
 
@@ -30,14 +32,15 @@ Optional features (secrets manager, managed keys) always return `UnsupportedFeat
 
 ## Coverage
 
-| Interface                                 | Crate                           | Status          |
-| ----------------------------------------- | ------------------------------- | --------------- |
-| `wasi-ephemeral-crypto-common`            | `wasi-crypto-common`            | Partial         |
-| `wasi-ephemeral-crypto-symmetric`         | `wasi-crypto-symmetric`         | Partial         |
-| `wasi-ephemeral-crypto-signatures`        | `wasi-crypto-signatures`        | Partial         |
-| `wasi-ephemeral-crypto-kx`                | `wasi-crypto-kx`                | Partial         |
-| `wasi-ephemeral-crypto-asymmetric-common` | `wasi-crypto-asymmetric-common` | Partial         |
-| `wasi-ephemeral-crypto-external-secrets`  | —                               | Not yet written |
+| Interface                          | Crate                         | Status          |
+| ---------------------------------- | ----------------------------- | --------------- |
+| `common`                           | `wasi-crypto-common`          | Covered         |
+| `secrets-manager`                  | `wasi-crypto-secrets-manager` | Partial         |
+| `symmetric`, `symmetric-managed`   | `wasi-crypto-symmetric`       | Partial         |
+| `signatures`, `signatures-managed` | `wasi-crypto-signatures`      | Partial         |
+| `kx`                               | `wasi-crypto-kx`              | Partial         |
+| `kx-managed`                       | /                             | Not yet written |
+| `external-secrets`                 | /                             | Not yet written |
 
 See [`../docs/modules.md`](../docs/modules.md) for detail on what each existing component covers.
 

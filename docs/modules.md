@@ -6,8 +6,8 @@ Per-module reference for `wasmtime-wasi-crypto`. For the overall pipeline see [`
 
 ## Symmetric (`symmetric/`)
 
-**WIT interface:** `wasi-ephemeral-crypto-symmetric`
-**Binding impl:** `bindings/symmetric.rs`
+**WIT interfaces:** `symmetric`, `symmetric-managed`
+**Binding impl:** `bindings/symmetric.rs`, `bindings/symmetric_managed.rs`
 
 ### Algorithms
 
@@ -32,30 +32,30 @@ Per-module reference for `wasmtime-wasi-crypto`. For the overall pipeline see [`
 
 Algorithm strings are matched case-insensitively via `.to_uppercase()`.
 
-### Options (`SymmetricOptions`)
+### Options (`symmetric-options` / `SymmetricOptions`)
 
 `SymmetricOptions` wraps an `Arc<Mutex<SymmetricOptionsInner>>` for clone-safe shared access.
 
-| Option name    | Type                | Set via                    |
-| -------------- | ------------------- | -------------------------- |
-| `context`      | `Vec<u8>`           | `options_set`              |
-| `salt`         | `Vec<u8>`           | `options_set`              |
-| `nonce`        | `Vec<u8>`           | `options_set`              |
-| `buffer`       | `&'static mut [u8]` | `options_set_guest_buffer` |
-| `memory_limit` | `u64`               | `options_set_u64`          |
-| `ops_limit`    | `u64`               | `options_set_u64`          |
-| `parallelism`  | `u64`               | `options_set_u64`          |
+| Option name    | Type                | Set via            |
+| -------------- | ------------------- | ------------------ |
+| `context`      | `Vec<u8>`           | `set`              |
+| `salt`         | `Vec<u8>`           | `set`              |
+| `nonce`        | `Vec<u8>`           | `set`              |
+| `buffer`       | `&'static mut [u8]` | `set-guest-buffer` |
+| `memory_limit` | `u64`               | `set-u64`          |
+| `ops_limit`    | `u64`               | `set-u64`          |
+| `parallelism`  | `u64`               | `set-u64`          |
 
 ### Known gaps
 
-- Optional managed-key functions (`symmetric_key_generate_managed`, `*_store_managed`, `*_replace_managed`, `*_id`, `*_from_id`) return `UnsupportedFeature` -> mirrors WITX reference impl.
+- The optional `symmetric-managed` functions (`generate-managed`, `store-managed`, `replace-managed`, `id`, `from-id`) return `UnsupportedFeature` -> mirrors WITX reference impl.
 
 ---
 
 ## Signatures (`signatures/`)
 
-**WIT interface:** `wasi-ephemeral-crypto-signatures`
-**Binding impl:** `bindings/signatures.rs`
+**WIT interfaces:** `signatures`, `signatures-managed`
+**Binding impl:** `bindings/signatures.rs`, `bindings/signatures_managed.rs`
 
 ### Algorithms
 
@@ -72,21 +72,31 @@ Algorithm strings are matched case-insensitively. Note: underscores (`_`) are us
 
 RSA uses [`boring`](https://docs.rs/boring/latest/boring/) (Rust bindings for BoringSSL) rather than pure-Rust crates.
 
-### Options (`SignatureOptions`)
+### Key types
 
-No options are currently supported. All `options_set` / `options_set_u64` calls return `UnsupportedOption`.
+| WIT resource          | Rust type            | File                      |
+| --------------------- | -------------------- | ------------------------- |
+| `signature-keypair`   | `SignatureKeyPair`   | `signatures/keypair.rs`   |
+| `signature-publickey` | `SignaturePublicKey` | `signatures/publickey.rs` |
+| `signature-secretkey` | `SignatureSecretKey` | `signatures/secretkey.rs` |
+
+Each is an enum over the ECDSA, EdDSA and RSA implementations. A key's family is fixed by its type, so signature keys can't be passed to key-exchange functions.
+
+### Options (`signature-options` / `SignatureOptions`)
+
+No options are currently supported. All `set` / `set-u64` calls return `UnsupportedOption`.
 
 ### Known gaps
 
-- Optional managed-keypair functions return `UnsupportedFeature` -> mirrors WITX reference impl.
-- `keypair_from_pk_and_sk` validates algorithm compatibility but always returns `NotImplemented` (`keypair.rs:85-100`).
+- The optional `signatures-managed` functions return `UnsupportedFeature` -> mirrors WITX reference impl.
+- `signature-keypair.from-pk-and-sk` validates algorithm compatibility but always returns `NotImplemented` (`SignatureKeyPair::from_pk_and_sk`).
 
 ---
 
 ## Key Exchange (`key_exchange/`)
 
-**WIT interface:** `wasi-ephemeral-crypto-kx`
-**Binding impl:** `bindings/key_exchange.rs`
+**WIT interfaces:** `kx`, `kx-managed`
+**Binding impl:** `bindings/kx.rs`, `bindings/kx_managed.rs`
 
 ### Algorithms
 
@@ -98,57 +108,54 @@ No options are currently supported. All `options_set` / `options_set_u64` calls 
 
 Kyber is behind the `pqcrypto` Cargo feature, which is enabled by default.
 
-### Options (`KxOptions`)
+### Key types
+
+| WIT resource   | Rust type     | File                        |
+| -------------- | ------------- | --------------------------- |
+| `kx-keypair`   | `KxKeyPair`   | `key_exchange/keypair.rs`   |
+| `kx-publickey` | `KxPublicKey` | `key_exchange/publickey.rs` |
+| `kx-secretkey` | `KxSecretKey` | `key_exchange/secretkey.rs` |
+
+Diffie-Hellman is a method on the secret key (`sk.dh(peer_pk)`). KEMs use `kx-publickey.encapsulate` and `kx-secretkey.decapsulate`. A key's family is fixed by its type, so key-exchange keys can't be passed to signature functions.
+
+### Options (`kx-options` / `KxOptions`)
 
 `KxOptionsInner` has a `context` field that is never read -> dead code.
-All `options_set` / `options_set_u64` calls return `UnsupportedOption`.
+All `set` / `set-u64` calls return `UnsupportedOption`.
 
 ### Known gaps
 
----
-
-## Asymmetric Common (`asymmetric_common/`)
-
-**WIT interface:** `wasi-ephemeral-crypto-asymmetric-common`
-**Binding impl:** `bindings/asymmetric_common.rs`
-
-Provides `PublicKey` and `SecretKey` enums that unify the signature and key-exchange variants:
-
-```
-PublicKey  ::= Signature(SignaturePublicKey) | KeyExchange(KxPublicKey)
-SecretKey  ::= Signature(SignatureSecretKey) | KeyExchange(KxSecretKey)
-```
-
-The top-level `KeyPair` enum (`keypair.rs`) similarly unifies `SignatureKeyPair` and `KxKeyPair`.
-
-### Known gaps
-
-- `keypair_from_pk_and_sk` returns `NotImplemented` (see Signatures section above).
-- Optional managed-keypair functions return `UnsupportedFeature`.
+- `kx-keypair.import` returns `InvalidOperation`: there is no `KxKeyPair::import`.
+- `kx-keypair.from-pk-and-sk` validates algorithm compatibility but always returns `NotImplemented` (`KxKeyPair::from_pk_and_sk`).
+- The optional `kx-managed` functions return `UnsupportedFeature`.
 
 ---
 
 ## Common (`bindings/common.rs`)
 
-**WIT interface:** `wasi-ephemeral-crypto-common`
+**WIT interface:** `common`
 
-Implements options lifecycle, `array_output`, and `secrets_manager`.
+Implements `array-output`. The interface also declares the types shared by several families (`crypto-errno`, the key encodings, `version`, ...).
 
-### `array_output`
+### `array-output`
 
 `ArrayOutput` is a `Cursor<Vec<u8>>` wrapper. On drop it calls `zeroize()` on the inner buffer via the [`zeroize`](https://docs.rs/zeroize/latest/zeroize/) crate.
 
-`array_output_pull` (WIT) calls `array_output_value.len()` to determine the exact byte count, pre-allocates `vec![0u8; len]`, then passes that buffer to `ArrayOutput::pull`. `pull` checks `buf.len() >= data.len()` before copying, so the Overflow path is never hit for a correctly-sized buffer.
+`array-output.pull` (WIT) calls `array_output_value.len()` to determine the exact byte count, pre-allocates `vec![0u8; len]`, then passes that buffer to `ArrayOutput::pull`. `pull` checks `buf.len() >= data.len()` before copying, so the Overflow path is never hit for a correctly-sized buffer.
 
-### `secrets_manager`
+---
 
-Both functions (`secrets_manager_open`, `secrets_manager_invalidate`) return `CryptoErrno::UnsupportedFeature`. `SecretsManager` has no backing Rust type and is not mapped in `bindgen!`. This mirrors the WITX reference implementation.
+## Secrets manager (`bindings/secrets_manager.rs`, `secrets_manager.rs`)
+
+**WIT interface:** `secrets-manager`
+
+`secrets-manager.open` and `invalidate` return `CryptoErrno::UnsupportedFeature`. The `secrets-manager` resource has no backing Rust type and is not mapped in `bindgen!`. This mirrors the WITX reference implementation. `secrets-manager-options` is backed by an empty `SecretsManagerOptions`; no option names exist, so its setters return `UnsupportedOption`.
 
 ---
 
 ## External Secrets (`bindings/external_secrets.rs`)
 
-**WIT interface:** `wasi-ephemeral-crypto-external-secrets`
+**WIT interface:** `external-secrets`
 
 All functions return `CryptoErrno::UnsupportedFeature`. This interface is fully optional and not implemented.
 
@@ -156,16 +163,21 @@ All functions return `CryptoErrno::UnsupportedFeature`. This interface is fully 
 
 ## Test coverage
 
-| Interface                                 | Test component                  | Status  | Notes                                                                                                                                                                                                                                                      |
-| ----------------------------------------- | ------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `wasi-ephemeral-crypto-common`            | `wasi-crypto-common`            | Partial | options lifecycle covered; `secrets_manager_open` must return `UnsupportedFeature`; the `secrets_manager_invalidate` scenarios only run once a secrets manager exists                                                                                      |
-| `wasi-ephemeral-crypto-symmetric`         | `wasi-crypto-symmetric`         | Partial | keys, AEAD, hash, MAC, HKDF covered; `symmetric_key_id` of an unmanaged key returns `UnsupportedFeature`; the other managed-key scenarios only run once a secrets manager exists                                                                           |
-| `wasi-ephemeral-crypto-signatures`        | `wasi-crypto-signatures`        | Partial | Ed25519, ECDSA P256/K256/P384, RSA PKCS1/PSS covered; the managed-keypair scenario only runs once a secrets manager exists                                                                                                                                 |
-| `wasi-ephemeral-crypto-kx`                | `wasi-crypto-kx`                | Partial | X25519 DH, keypair/key round-trips, low-order point rejection covered; ML-KEM and X-Wing encapsulation and key round-trips                                                                                                                                 |
-| `wasi-ephemeral-crypto-asymmetric-common` | `wasi-crypto-asymmetric-common` | Partial | keypair/publickey/secretkey lifecycle across Ed25519, ECDSA P256/P384, X25519; `keypair_from_pk_and_sk` expects `NotImplemented`                                                                                                                           |
-| `wasi-ephemeral-crypto-symmetric`         | `wasi-crypto-in-place`          | Partial | guest-memory regression tests: plain encrypt/decrypt (AEADs, Xoodyak) allocate a separate output buffer, measured via `allocation-counter` and `memory.size`; `in_place` helpers write the result over the input with no guest allocation or memory growth |
-| `wasi-ephemeral-crypto-symmetric`         | native: `symmetric/tests.rs`    | Partial | AEADs only (AES-GCM, (X)ChaCha20-Poly1305, Xoodyak): `insta` known-answer snapshots of ciphertext and tags, round-trip and tampered-tag checks, and host allocation counts per encrypt/decrypt operation                                                   |
-| `wasi-ephemeral-crypto-external-secrets`  | /                               | Missing | not yet written                                                                                                                                                                                                                                            |
+Each test component declares a world that imports only the interfaces it tests, so it can run against a host that provides just those interfaces.
+
+| Interface            | Test component                | Status  | Notes                                                                                                                                                                                                                                                      |
+| -------------------- | ----------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `common`             | `wasi-crypto-common`          | Covered | `array-output` `len` and `pull`; also imports `symmetric`, because only a family interface can produce an `array-output`                                                                                                                                   |
+| `secrets-manager`    | `wasi-crypto-secrets-manager` | Partial | `open` must return `UnsupportedFeature`; the `invalidate` scenarios only run once a secrets manager exists                                                                                                                                                 |
+| `symmetric`          | `wasi-crypto-symmetric`       | Partial | options, keys, AEAD, hash, MAC, HKDF covered                                                                                                                                                                                                               |
+| `symmetric-managed`  | `wasi-crypto-symmetric`       | Partial | `id` of an unmanaged key returns `UnsupportedFeature`; the other managed-key scenarios only run once a secrets manager exists                                                                                                                              |
+| `signatures`         | `wasi-crypto-signatures`      | Partial | options; Ed25519, ECDSA P256/K256/P384, RSA PKCS1/PSS covered; key import/export round trips and errors; `signature-secretkey.import` expects `NotImplemented`                                                                                             |
+| `signatures-managed` | `wasi-crypto-signatures`      | Partial | the managed-keypair scenario only runs once a secrets manager exists                                                                                                                                                                                       |
+| `kx`                 | `wasi-crypto-kx`              | Partial | options; X25519 DH, key round-trips, low-order point rejection; ML-KEM and X-Wing encapsulation and key round-trips; `kx-keypair.import` and `from-pk-and-sk` expect not-implemented errors                                                                |
+| `kx-managed`         | /                             | Missing | not yet written                                                                                                                                                                                                                                            |
+| `symmetric`          | `wasi-crypto-in-place`        | Partial | guest-memory regression tests: plain encrypt/decrypt (AEADs, Xoodyak) allocate a separate output buffer, measured via `allocation-counter` and `memory.size`; `in_place` helpers write the result over the input with no guest allocation or memory growth |
+| `symmetric`          | native: `symmetric/tests.rs`  | Partial | AEADs only (AES-GCM, (X)ChaCha20-Poly1305, Xoodyak): `insta` known-answer snapshots of ciphertext and tags, round-trip and tampered-tag checks, and host allocation counts per encrypt/decrypt operation                                                   |
+| `external-secrets`   | /                             | Missing | not yet written                                                                                                                                                                                                                                            |
 
 **Test behavior:**
 

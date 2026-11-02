@@ -14,7 +14,7 @@ pub use self::key::SymmetricKey;
 pub use self::state::SymmetricState;
 pub use self::tag::SymmetricTag;
 use crate::{
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
+    bindings::wasi::crypto::common::CryptoErrno,
     error::{CryptoError, CryptoResult},
     options::OptionsLike,
 };

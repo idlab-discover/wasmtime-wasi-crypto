@@ -1,5 +1,5 @@
 use crate::{
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::PublickeyEncoding,
+    bindings::wasi::crypto::common::PublickeyEncoding,
     error::CryptoResult,
     signatures::{
         SignatureAlgorithm, SignatureAlgorithmFamily, ecdsa::EcdsaSignaturePublicKey,

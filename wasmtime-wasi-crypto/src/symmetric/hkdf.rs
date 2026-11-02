@@ -2,9 +2,7 @@ use subtle::ConstantTimeEq;
 use zeroize::Zeroize;
 
 use crate::{
-    bindings::wasi::crypto::{
-        wasi_ephemeral_crypto_common::CryptoErrno, wasi_ephemeral_crypto_symmetric::SymmetricKey,
-    },
+    bindings::wasi::crypto::{common::CryptoErrno, symmetric::SymmetricKey},
     error::CryptoResult,
     options::OptionsLike,
     rand::SecureRandom,

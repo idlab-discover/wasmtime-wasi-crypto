@@ -1,7 +1,7 @@
 #[cfg(feature = "pqcrypto")]
 use crate::key_exchange::kem::{MlKemKeyPairBuilder, XWingKeyPairBuilder};
 use crate::{
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::{CryptoErrno, KeypairEncoding},
+    bindings::wasi::crypto::common::{CryptoErrno, KeypairEncoding},
     error::CryptoResult,
     key_exchange::{
         KxAlgorithm, KxOptions, dh::X25519KeyPairBuilder, publickey::KxPublicKey,
@@ -81,6 +81,16 @@ impl KxKeyPair {
 
     pub(crate) fn secret_key(&self) -> CryptoResult<KxSecretKey> {
         self.inner().secretkey()
+    }
+
+    /// Only checks that the two keys belong together.
+    // TODO: build the key pair once the per-algorithm key pairs can be
+    // assembled from their parts.
+    pub(crate) fn from_pk_and_sk(pk: &KxPublicKey, sk: &KxSecretKey) -> CryptoResult<KxKeyPair> {
+        if pk.alg() != sk.alg() {
+            return Err(CryptoErrno::IncompatibleKeys.into());
+        }
+        Err(CryptoErrno::NotImplemented.into())
     }
 }
 

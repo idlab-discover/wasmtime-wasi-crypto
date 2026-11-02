@@ -6,9 +6,7 @@ use std::{
 use subtle::ConstantTimeEq;
 
 use crate::{
-    bindings::wasi::crypto::wasi_ephemeral_crypto_signatures::{
-        SignatureKeypair, SignaturePublickey,
-    },
+    bindings::wasi::crypto::signatures::{SignatureKeypair, SignaturePublickey},
     error::CryptoResult,
     signatures::{
         SignatureAlgorithm, SignatureAlgorithmFamily,
@@ -105,7 +103,7 @@ impl SignatureState {
         table: &mut ResourceTable,
         kp: Resource<SignatureKeypair>,
     ) -> CryptoResult<Resource<SignatureState>> {
-        let kp = table.get(&kp)?.clone().into_signature_keypair()?;
+        let kp = table.get(&kp)?.clone();
         let signature_state = match kp {
             SignatureKeyPair::Ecdsa(kp) => {
                 SignatureState::new(Box::new(EcdsaSignatureState::new(kp)))
@@ -158,7 +156,7 @@ impl SignatureVerificationState {
         table: &mut ResourceTable,
         pk: Resource<SignaturePublickey>,
     ) -> CryptoResult<Resource<SignatureVerificationState>> {
-        let pk = table.get(&pk)?.clone().into_signature_public_key()?;
+        let pk = table.get(&pk)?.clone();
         let signature_verification_state = match pk {
             SignaturePublicKey::Ecdsa(pk) => {
                 SignatureVerificationState::new(Box::new(EcdsaSignatureVerificationState::new(pk)))

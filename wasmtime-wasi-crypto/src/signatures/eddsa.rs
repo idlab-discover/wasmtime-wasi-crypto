@@ -1,7 +1,5 @@
 use crate::{
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::{
-        CryptoErrno, KeypairEncoding, PublickeyEncoding,
-    },
+    bindings::wasi::crypto::common::{CryptoErrno, KeypairEncoding, PublickeyEncoding},
     error::CryptoResult,
     signatures::{
         SignatureAlgorithm, SignatureOptions,

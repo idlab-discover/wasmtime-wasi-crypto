@@ -1,5 +1,5 @@
 use crate::{
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno,
+    bindings::wasi::crypto::common::CryptoErrno,
     error::CryptoResult,
     key_exchange::{
         KxAlgorithm, KxOptions,

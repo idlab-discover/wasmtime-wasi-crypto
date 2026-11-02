@@ -1,124 +1,50 @@
+// The world imports only the interfaces under test, so these tests also run
+// against a host that provides just those. `common` can't create an
+// `array-output` by itself; only the family interfaces return one, so
+// `symmetric` is imported as the producer (key export is deterministic).
 wit_bindgen::generate!({
-    world: "imports",
     path: "../../spec/wit",
-    with: {
-        "wasi:crypto/wasi-ephemeral-crypto-asymmetric-common@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-common@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-external-secrets@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-kx@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-signatures@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-symmetric@0.11.0": generate,
+    inline: "
+        package wasi-crypto-tests:common;
 
-    },
+        world common-tests {
+            import wasi:crypto/common@0.12.0;
+            import wasi:crypto/symmetric@0.12.0;
+        }
+    ",
+    world: "common-tests",
+    // The world is in its own test package, so the `wasi:crypto` interfaces
+    // it imports need bindings generated explicitly.
+    generate_all,
 });
 
+// This component covers the `common` interface: the `array-output` resource.
 #[cfg(test)]
 mod tests {
-    use crate::wasi::crypto::wasi_ephemeral_crypto_common::*;
+    use crate::wasi::crypto::common::ArrayOutput;
+    use crate::wasi::crypto::symmetric::SymmetricKey;
 
-    #[test]
-    fn options_open_drop_symmetric() {
-        let opts = options_open(AlgorithmType::Symmetric).unwrap();
-        drop(opts);
+    const RAW_KEY: &[u8; 32] = b"0123456789abcdef0123456789abcdef";
+
+    /// Produces an `array-output` holding exactly `RAW_KEY`.
+    fn exported_key() -> ArrayOutput {
+        let key = SymmetricKey::import("HMAC/SHA-256", RAW_KEY)
+            .unwrap_or_else(|e| panic!("SymmetricKey::import failed: {e:?}"));
+        key.export()
+            .unwrap_or_else(|e| panic!("SymmetricKey::export failed: {e:?}"))
     }
 
     #[test]
-    fn options_open_drop_signatures() {
-        let opts = options_open(AlgorithmType::Signatures).unwrap();
-        drop(opts);
+    fn array_output_len_returns_content_length() {
+        let output = exported_key();
+        assert_eq!(output.len().unwrap(), RAW_KEY.len() as u32);
+        drop(output);
     }
 
     #[test]
-    fn options_open_drop_key_exchange() {
-        let opts = options_open(AlgorithmType::KeyExchange).unwrap();
-        drop(opts);
-    }
-
-    #[test]
-    fn options_set_u64_threads() {
-        let opts = options_open(AlgorithmType::Symmetric).unwrap();
-        match options_set_u64(&opts, "threads", 1) {
-            Ok(()) | Err(CryptoErrno::UnsupportedOption) => {}
-            Err(e) => panic!("unexpected error: {e:?}"),
-        }
-        drop(opts);
-    }
-
-    #[test]
-    fn options_set_context_bytes() {
-        let opts = options_open(AlgorithmType::Symmetric).unwrap();
-        match options_set(&opts, "context", b"test-context") {
-            Ok(()) | Err(CryptoErrno::UnsupportedOption) => {}
-            Err(e) => panic!("unexpected error: {e:?}"),
-        }
-        drop(opts);
-    }
-
-    #[test]
-    fn options_set_rejects_garbage_name() {
-        let opts = options_open(AlgorithmType::Symmetric).unwrap();
-        match options_set_u64(&opts, "__not_a_real_option__", 0) {
-            Err(CryptoErrno::UnsupportedOption) => {}
-            Ok(()) => panic!("host accepted garbage option name"),
-            Err(e) => panic!("unexpected error: {e:?}"),
-        }
-        drop(opts);
-    }
-
-    // ── secrets manager ───────────────────────────────────────────────────────
-    //
-    // The host doesn't implement a secrets manager (neither does the WITX
-    // reference), so `secrets_manager_open` returns `UnsupportedFeature`.
-    // `#[should_panic]` can't express that on wasm: libtest ignores such tests
-    // without running them, and the runner reports the ignored test as passed.
-    // So these tests run, accept exactly `UnsupportedFeature` from `open`, and
-    // only exercise the rest of their scenario once a secrets manager exists.
-
-    /// Opens a secrets manager, or returns `None` when the host reports
-    /// `UnsupportedFeature`. Any other error fails the test.
-    // TODO: assert that `open` succeeds once the host implements a secrets manager.
-    fn open_secrets_manager() -> Option<SecretsManager> {
-        match secrets_manager_open(None) {
-            Ok(sm) => Some(sm),
-            Err(CryptoErrno::UnsupportedFeature) => {
-                eprintln!("secrets manager unsupported by the host; rest of the test skipped");
-                None
-            }
-            Err(e) => panic!("unexpected error: {e:?}"),
-        }
-    }
-
-    #[test]
-    fn secrets_manager_open_drop() {
-        let Some(sm) = open_secrets_manager() else {
-            return;
-        };
-        drop(sm);
-    }
-
-    #[test]
-    fn secrets_manager_invalidate_not_found() {
-        let Some(sm) = open_secrets_manager() else {
-            return;
-        };
-        match secrets_manager_invalidate(&sm, &[], Version::Latest) {
-            Err(CryptoErrno::NotFound) => {}
-            Ok(()) => panic!("invalidating nonexistent key should return not-found"),
-            Err(e) => panic!("unexpected error: {e:?}"),
-        }
-        drop(sm);
-    }
-
-    #[test]
-    fn secrets_manager_invalidate_all_versions_not_found() {
-        let Some(sm) = open_secrets_manager() else {
-            return;
-        };
-        match secrets_manager_invalidate(&sm, &[], Version::All) {
-            Err(CryptoErrno::NotFound) => {}
-            Ok(()) => panic!("invalidating nonexistent key should return not-found"),
-            Err(e) => panic!("unexpected error: {e:?}"),
-        }
-        drop(sm);
+    fn array_output_pull_returns_contents() {
+        let output = exported_key();
+        let bytes = ArrayOutput::pull(output).unwrap();
+        assert_eq!(bytes, RAW_KEY);
     }
 }

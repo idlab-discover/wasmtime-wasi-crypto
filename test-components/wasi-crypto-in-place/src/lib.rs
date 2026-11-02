@@ -20,18 +20,21 @@
 //! Keeping it isolated means the other test components still exercise the
 //! default allocation path.
 
+// Only `symmetric` is needed: the in-place helpers wrap its encrypt/decrypt
+// methods.
 wit_bindgen::generate!({
-    world: "imports",
     path: "../../spec/wit",
-    with: {
-        "wasi:crypto/wasi-ephemeral-crypto-asymmetric-common@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-common@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-external-secrets@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-kx@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-signatures@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-symmetric@0.11.0": generate,
+    inline: "
+        package wasi-crypto-tests:in-place;
 
-    },
+        world in-place-tests {
+            import wasi:crypto/symmetric@0.12.0;
+        }
+    ",
+    world: "in-place-tests",
+    // The world is in its own test package, so the `wasi:crypto` interfaces
+    // it imports need bindings generated explicitly.
+    generate_all,
 });
 
 // ==============================================================================
@@ -78,8 +81,8 @@ pub mod in_place {
     use std::cell::Cell;
     use std::mem::forget;
 
-    use crate::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno;
-    use crate::wasi::crypto::wasi_ephemeral_crypto_symmetric::*;
+    use crate::wasi::crypto::common::CryptoErrno;
+    use crate::wasi::crypto::symmetric::{SymmetricState, SymmetricTag};
 
     // ── import allocation (mirrors the adapter) ──────────────────────────────
 
@@ -300,12 +303,12 @@ pub mod in_place {
 
     /// Encrypts `buf` in place and appends the tag.
     ///
-    /// This reserves `symmetric_state_max_tag_len()` bytes of spare capacity
-    /// first. Allocate `buf` with that room up front to avoid a reallocation.
+    /// This reserves `state.max_tag_len()` bytes of spare capacity first.
+    /// Allocate `buf` with that room up front to avoid a reallocation.
     pub fn encrypt(state: &SymmetricState, buf: &mut Vec<u8>) -> Result<(), CryptoErrno> {
-        let tag_len = symmetric_state_max_tag_len(state)? as usize;
+        let tag_len = state.max_tag_len()? as usize;
         buf.reserve_exact(tag_len);
-        call_in_place(buf, |input| symmetric_state_encrypt(state, input))
+        call_in_place(buf, |input| state.encrypt(input))
     }
 
     /// Encrypts `buf` in place and returns the tag separately.
@@ -315,7 +318,7 @@ pub mod in_place {
     ) -> Result<SymmetricTag, CryptoErrno> {
         let mut tag = None;
         call_in_place(buf, |input| {
-            let (output, t) = symmetric_state_encrypt_detached(state, input)?;
+            let (output, t) = state.encrypt_detached(input)?;
             tag = Some(t);
             Ok(output)
         })?;
@@ -325,13 +328,11 @@ pub mod in_place {
     /// Decrypts `buf` (ciphertext followed by the tag) in place. On success
     /// `buf` holds just the plaintext.
     pub fn decrypt(state: &SymmetricState, buf: &mut Vec<u8>) -> Result<(), CryptoErrno> {
-        let tag_len = symmetric_state_max_tag_len(state)? as usize;
+        let tag_len = state.max_tag_len()? as usize;
         // A buffer shorter than the tag can't be valid. Passing 0 lets the host
         // reject it with its usual error instead of us inventing one.
         let out_len = buf.len().saturating_sub(tag_len);
-        call_in_place(buf, |input| {
-            symmetric_state_decrypt(state, input, out_len as _)
-        })
+        call_in_place(buf, |input| state.decrypt(input, out_len as _))
     }
 
     /// Decrypts `buf` in place, checking it against the detached `raw_tag`.
@@ -340,9 +341,7 @@ pub mod in_place {
         buf: &mut Vec<u8>,
         raw_tag: &[u8],
     ) -> Result<(), CryptoErrno> {
-        call_in_place(buf, |input| {
-            symmetric_state_decrypt_detached(state, input, raw_tag)
-        })
+        call_in_place(buf, |input| state.decrypt_detached(input, raw_tag))
     }
 }
 
@@ -432,10 +431,10 @@ mod measurement {
 mod tests {
     use crate::in_place;
     use crate::measurement::{Measurement, measure, report};
-    use crate::wasi::crypto::wasi_ephemeral_crypto_common::{
-        AlgorithmType, CryptoErrno, options_open, options_set,
+    use crate::wasi::crypto::common::CryptoErrno;
+    use crate::wasi::crypto::symmetric::{
+        SymmetricKey, SymmetricOptions, SymmetricState, SymmetricTag,
     };
-    use crate::wasi::crypto::wasi_ephemeral_crypto_symmetric::*;
 
     /// Large enough that message-sized buffers stand out clearly from
     /// everything else the harness allocates, and span many wasm pages.
@@ -450,12 +449,12 @@ mod tests {
         let opts = if alg.starts_with("XOODYAK") {
             None
         } else {
-            let opts = options_open(AlgorithmType::Symmetric).expect("options_open failed");
-            options_set(&opts, "nonce", &[7u8; 12]).expect("setting nonce failed");
+            let opts = SymmetricOptions::new();
+            opts.set("nonce", &[7u8; 12]).expect("setting nonce failed");
             Some(opts)
         };
-        symmetric_state_open(alg, Some(key), opts.as_ref())
-            .unwrap_or_else(|e| panic!("symmetric_state_open({alg}) failed: {e:?}"))
+        SymmetricState::open(alg, Some(key), opts.as_ref())
+            .unwrap_or_else(|e| panic!("SymmetricState::open({alg}) failed: {e:?}"))
     }
 
     fn message() -> Vec<u8> {
@@ -467,8 +466,7 @@ mod tests {
     /// behind that a measured call could reuse without growing memory.
     fn encrypted_message(alg: &str, key: &SymmetricKey) -> (Vec<u8>, Vec<u8>) {
         let plaintext = message();
-        let ciphertext =
-            symmetric_state_encrypt(&open(alg, key), &plaintext).expect("encrypt failed");
+        let ciphertext = open(alg, key).encrypt(&plaintext).expect("encrypt failed");
         (plaintext, ciphertext)
     }
 
@@ -503,12 +501,11 @@ mod tests {
     }
 
     fn encrypt_baseline(alg: &str) {
-        let key = symmetric_key_generate(alg, None).expect("key generation failed");
+        let key = SymmetricKey::generate(alg, None).expect("key generation failed");
         let state = open(alg, &key);
         let plaintext = message();
 
-        let (ciphertext, m) =
-            measure(|| symmetric_state_encrypt(&state, &plaintext).expect("encrypt failed"));
+        let (ciphertext, m) = measure(|| state.encrypt(&plaintext).expect("encrypt failed"));
 
         report(
             &format!("{alg} encrypt"),
@@ -517,18 +514,20 @@ mod tests {
             &ciphertext,
             &m,
         );
-        let tag_len = symmetric_state_max_tag_len(&state).expect("max_tag_len failed") as usize;
+        let tag_len = state.max_tag_len().expect("max_tag_len failed") as usize;
         assert_eq!(ciphertext.len(), MESSAGE_LEN + tag_len);
         assert_fresh_output_buffer(&plaintext, &ciphertext, &m);
     }
 
     fn decrypt_baseline(alg: &str) {
-        let key = symmetric_key_generate(alg, None).expect("key generation failed");
+        let key = SymmetricKey::generate(alg, None).expect("key generation failed");
         let (plaintext, ciphertext) = encrypted_message(alg, &key);
         let state = open(alg, &key);
 
         let (decrypted, m) = measure(|| {
-            symmetric_state_decrypt(&state, &ciphertext, MESSAGE_LEN as _).expect("decrypt failed")
+            state
+                .decrypt(&ciphertext, MESSAGE_LEN as _)
+                .expect("decrypt failed")
         });
 
         report(
@@ -581,12 +580,14 @@ mod tests {
     #[test]
     fn baseline_encrypt_detached_aes256gcm_allocates_output() {
         let alg = "AES-256-GCM";
-        let key = symmetric_key_generate(alg, None).expect("key generation failed");
+        let key = SymmetricKey::generate(alg, None).expect("key generation failed");
         let state = open(alg, &key);
         let plaintext = message();
 
         let ((ciphertext, _tag), m) = measure(|| {
-            symmetric_state_encrypt_detached(&state, &plaintext).expect("encrypt_detached failed")
+            state
+                .encrypt_detached(&plaintext)
+                .expect("encrypt_detached failed")
         });
 
         report(
@@ -603,15 +604,17 @@ mod tests {
     #[test]
     fn baseline_decrypt_detached_aes256gcm_allocates_output() {
         let alg = "AES-256-GCM";
-        let key = symmetric_key_generate(alg, None).expect("key generation failed");
+        let key = SymmetricKey::generate(alg, None).expect("key generation failed");
         let plaintext = message();
-        let (ciphertext, tag) = symmetric_state_encrypt_detached(&open(alg, &key), &plaintext)
+        let (ciphertext, tag) = open(alg, &key)
+            .encrypt_detached(&plaintext)
             .expect("encrypt_detached failed");
-        let raw_tag = symmetric_tag_pull(tag).expect("tag pull failed");
+        let raw_tag = SymmetricTag::pull(tag).expect("tag pull failed");
         let state = open(alg, &key);
 
         let (decrypted, m) = measure(|| {
-            symmetric_state_decrypt_detached(&state, &ciphertext, &raw_tag)
+            state
+                .decrypt_detached(&ciphertext, &raw_tag)
                 .expect("decrypt_detached failed")
         });
 
@@ -631,7 +634,7 @@ mod tests {
     /// A message-sized buffer with room for the tag, as a caller that plans to
     /// encrypt in place would allocate it.
     fn message_with_tag_room(state: &SymmetricState) -> Vec<u8> {
-        let tag_len = symmetric_state_max_tag_len(state).expect("max_tag_len failed") as usize;
+        let tag_len = state.max_tag_len().expect("max_tag_len failed") as usize;
         let mut buf = Vec::with_capacity(MESSAGE_LEN + tag_len);
         buf.resize(MESSAGE_LEN, 0x5a);
         buf
@@ -655,7 +658,7 @@ mod tests {
     }
 
     fn encrypt_in_place(alg: &str) {
-        let key = symmetric_key_generate(alg, None).expect("key generation failed");
+        let key = SymmetricKey::generate(alg, None).expect("key generation failed");
         let state = open(alg, &key);
         let mut buf = message_with_tag_room(&state);
         let (input_ptr, input_len) = (buf.as_ptr(), buf.len());
@@ -671,8 +674,7 @@ mod tests {
         );
         assert_in_place(input_ptr, &buf, &m);
         // Same key and nonce, so the plain API must produce the same bytes.
-        let expected =
-            symmetric_state_encrypt(&open(alg, &key), &message()).expect("encrypt failed");
+        let expected = open(alg, &key).encrypt(&message()).expect("encrypt failed");
         assert!(
             buf == expected,
             "in-place ciphertext differs from the plain API's"
@@ -680,7 +682,7 @@ mod tests {
     }
 
     fn decrypt_in_place(alg: &str) {
-        let key = symmetric_key_generate(alg, None).expect("key generation failed");
+        let key = SymmetricKey::generate(alg, None).expect("key generation failed");
         let (plaintext, mut buf) = encrypted_message(alg, &key);
         let state = open(alg, &key);
         let (input_ptr, input_len) = (buf.as_ptr(), buf.len());
@@ -731,7 +733,7 @@ mod tests {
     #[test]
     fn in_place_detached_aes256gcm_round_trip() {
         let alg = "AES-256-GCM";
-        let key = symmetric_key_generate(alg, None).expect("key generation failed");
+        let key = SymmetricKey::generate(alg, None).expect("key generation failed");
         let mut buf = message();
         let (input_ptr, input_len) = (buf.as_ptr(), buf.len());
 
@@ -747,7 +749,7 @@ mod tests {
             &m,
         );
         assert_in_place(input_ptr, &buf, &m);
-        let raw_tag = symmetric_tag_pull(tag).expect("tag pull failed");
+        let raw_tag = SymmetricTag::pull(tag).expect("tag pull failed");
 
         let state = open(alg, &key);
         let ((), m) = measure(|| {
@@ -767,13 +769,13 @@ mod tests {
     #[test]
     fn in_place_encrypt_empty_message() {
         let alg = "AES-256-GCM";
-        let key = symmetric_key_generate(alg, None).expect("key generation failed");
+        let key = SymmetricKey::generate(alg, None).expect("key generation failed");
         let state = open(alg, &key);
         let mut buf = Vec::new();
 
         in_place::encrypt(&state, &mut buf).expect("encrypt failed");
 
-        let expected = symmetric_state_encrypt(&open(alg, &key), &[]).expect("encrypt failed");
+        let expected = open(alg, &key).encrypt(&[]).expect("encrypt failed");
         assert_eq!(buf, expected);
     }
 
@@ -808,7 +810,7 @@ mod tests {
     }
 
     fn compare_encrypt(alg: &str) {
-        let key = symmetric_key_generate(alg, None).expect("key generation failed");
+        let key = SymmetricKey::generate(alg, None).expect("key generation failed");
         let (in_place_state, plain_state) = (open(alg, &key), open(alg, &key));
         let mut buf = message_with_tag_room(&in_place_state);
         let plaintext = message();
@@ -817,7 +819,7 @@ mod tests {
         let ((), in_place_m) =
             measure(|| in_place::encrypt(&in_place_state, &mut buf).expect("encrypt failed"));
         let (ciphertext, plain_m) =
-            measure(|| symmetric_state_encrypt(&plain_state, &plaintext).expect("encrypt failed"));
+            measure(|| plain_state.encrypt(&plaintext).expect("encrypt failed"));
 
         report(
             &format!("{alg} encrypt in place (compared)"),
@@ -841,7 +843,7 @@ mod tests {
     }
 
     fn compare_decrypt(alg: &str) {
-        let key = symmetric_key_generate(alg, None).expect("key generation failed");
+        let key = SymmetricKey::generate(alg, None).expect("key generation failed");
         let (plaintext, ciphertext) = encrypted_message(alg, &key);
         let mut buf = ciphertext.clone();
         let (in_place_state, plain_state) = (open(alg, &key), open(alg, &key));
@@ -850,7 +852,8 @@ mod tests {
         let ((), in_place_m) =
             measure(|| in_place::decrypt(&in_place_state, &mut buf).expect("decrypt failed"));
         let (decrypted, plain_m) = measure(|| {
-            symmetric_state_decrypt(&plain_state, &ciphertext, MESSAGE_LEN as _)
+            plain_state
+                .decrypt(&ciphertext, MESSAGE_LEN as _)
                 .expect("decrypt failed")
         });
 
@@ -917,9 +920,8 @@ mod tests {
     #[test]
     fn in_place_decrypt_failure_leaves_buffer_untouched() {
         let alg = "AES-256-GCM";
-        let key = symmetric_key_generate(alg, None).expect("key generation failed");
-        let mut buf =
-            symmetric_state_encrypt(&open(alg, &key), &message()).expect("encrypt failed");
+        let key = SymmetricKey::generate(alg, None).expect("key generation failed");
+        let mut buf = open(alg, &key).encrypt(&message()).expect("encrypt failed");
         *buf.last_mut().expect("ciphertext includes a tag") ^= 1;
         let corrupted = buf.clone();
 
@@ -937,8 +939,7 @@ mod tests {
         // The import allocator was never used, and must have been reset to
         // `None` anyway: a plain call afterwards still gets a separate buffer.
         let plaintext = message();
-        let ciphertext =
-            symmetric_state_encrypt(&open(alg, &key), &plaintext).expect("encrypt failed");
+        let ciphertext = open(alg, &key).encrypt(&plaintext).expect("encrypt failed");
         assert!(!buf.as_ptr_range().contains(&ciphertext.as_ptr()));
     }
 }

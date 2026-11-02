@@ -1,6 +1,4 @@
-use crate::{
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno, error::CryptoResult,
-};
+use crate::{bindings::wasi::crypto::common::CryptoErrno, error::CryptoResult};
 use rand_core::{Infallible, TryCryptoRng, TryRng};
 
 pub struct SecureRandom;

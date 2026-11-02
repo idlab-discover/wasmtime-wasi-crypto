@@ -1,17 +1,18 @@
 # wasmtime-wasi-crypto
 
-Wasmtime host implementation of the `wasi:crypto@0.11.0` WIT interfaces.
+Wasmtime host implementation of the `wasi:crypto@0.12.0` WIT interfaces.
 
 ## What this crate does
 
-Implements all six `wasi-ephemeral-crypto-*` interfaces as Wasmtime component host functions:
+Implements all nine `wasi:crypto` interfaces as Wasmtime component host functions:
 
-- `wasi-ephemeral-crypto-common`: options, array_output, secrets_manager
-- `wasi-ephemeral-crypto-symmetric`: AEAD, hash, MAC, KDF
-- `wasi-ephemeral-crypto-signatures`: ECDSA, EdDSA, RSA
-- `wasi-ephemeral-crypto-kx`: X25519, Kyber KEM
-- `wasi-ephemeral-crypto-asymmetric-common`: shared keypair/publickey/secretkey operations
-- `wasi-ephemeral-crypto-external-secrets`: stub (returns `UnsupportedFeature`)
+- `common`: `array-output` and the shared types (`crypto-errno`, key encodings, ...)
+- `symmetric`: AEAD, hash, MAC, KDF, with their keys, options and states
+- `signatures`: ECDSA, EdDSA, RSA, with their key pairs, keys, options and states
+- `kx`: X25519, ML-KEM, X-Wing, with their key pairs, keys and options
+- `secrets-manager`: stub (`open` returns `UnsupportedFeature`)
+- `symmetric-managed`, `signatures-managed`, `kx-managed`: stubs (return `UnsupportedFeature`)
+- `external-secrets`: stub (returns `UnsupportedFeature`)
 
 ## Integrating into a Wasmtime host
 

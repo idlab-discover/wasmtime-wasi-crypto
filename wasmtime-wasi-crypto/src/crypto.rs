@@ -21,32 +21,18 @@ impl HasData for WasiCrypto {
     type Data<'a> = WasiCryptoCtxView<'a>;
 }
 
+/// Register every `wasi:crypto` interface with the linker.
 pub fn add_to_linker<T: WasiCryptoView + Send + 'static>(
     linker: &mut Linker<T>,
 ) -> wasmtime::Result<()> {
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::add_to_linker::<T, WasiCrypto>(
-        linker,
-        T::crypto,
-    )?;
-    bindings::wasi::crypto::wasi_ephemeral_crypto_asymmetric_common::add_to_linker::<T, WasiCrypto>(
-        linker,
-        T::crypto,
-    )?;
-    bindings::wasi::crypto::wasi_ephemeral_crypto_external_secrets::add_to_linker::<T, WasiCrypto>(
-        linker,
-        T::crypto,
-    )?;
-    bindings::wasi::crypto::wasi_ephemeral_crypto_kx::add_to_linker::<T, WasiCrypto>(
-        linker,
-        T::crypto,
-    )?;
-    bindings::wasi::crypto::wasi_ephemeral_crypto_signatures::add_to_linker::<T, WasiCrypto>(
-        linker,
-        T::crypto,
-    )?;
-    bindings::wasi::crypto::wasi_ephemeral_crypto_symmetric::add_to_linker::<T, WasiCrypto>(
-        linker,
-        T::crypto,
-    )?;
+    bindings::wasi::crypto::common::add_to_linker::<T, WasiCrypto>(linker, T::crypto)?;
+    bindings::wasi::crypto::secrets_manager::add_to_linker::<T, WasiCrypto>(linker, T::crypto)?;
+    bindings::wasi::crypto::symmetric::add_to_linker::<T, WasiCrypto>(linker, T::crypto)?;
+    bindings::wasi::crypto::symmetric_managed::add_to_linker::<T, WasiCrypto>(linker, T::crypto)?;
+    bindings::wasi::crypto::signatures::add_to_linker::<T, WasiCrypto>(linker, T::crypto)?;
+    bindings::wasi::crypto::signatures_managed::add_to_linker::<T, WasiCrypto>(linker, T::crypto)?;
+    bindings::wasi::crypto::kx::add_to_linker::<T, WasiCrypto>(linker, T::crypto)?;
+    bindings::wasi::crypto::kx_managed::add_to_linker::<T, WasiCrypto>(linker, T::crypto)?;
+    bindings::wasi::crypto::external_secrets::add_to_linker::<T, WasiCrypto>(linker, T::crypto)?;
     Ok(())
 }

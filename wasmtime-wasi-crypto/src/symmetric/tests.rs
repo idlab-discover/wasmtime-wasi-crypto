@@ -17,8 +17,8 @@
 
 use super::{SymmetricKey, SymmetricOptions, SymmetricState, SymmetricTag};
 use crate::{
-    bindings::wasi::crypto::wasi_ephemeral_crypto_common::CryptoErrno, error::CryptoResult,
-    limits::Limits, options::OptionsLike,
+    bindings::wasi::crypto::common::CryptoErrno, error::CryptoResult, limits::Limits,
+    options::OptionsLike,
 };
 
 const AD: &[u8] = b"wasi-crypto known-answer test additional data";

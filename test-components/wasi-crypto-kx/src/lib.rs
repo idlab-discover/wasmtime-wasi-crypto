@@ -1,41 +1,48 @@
+// The world imports only the interface under test, so these tests also run
+// against a host that provides just that interface (and `common`).
+// `kx-managed` isn't imported: there are no managed key-exchange tests yet.
 wit_bindgen::generate!({
-    world: "imports",
     path: "../../spec/wit",
-    with: {
-        "wasi:crypto/wasi-ephemeral-crypto-asymmetric-common@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-common@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-external-secrets@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-kx@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-signatures@0.11.0": generate,
-        "wasi:crypto/wasi-ephemeral-crypto-symmetric@0.11.0": generate,
-    },
+    inline: "
+        package wasi-crypto-tests:kx;
+
+        world kx-tests {
+            import wasi:crypto/kx@0.12.0;
+        }
+    ",
+    world: "kx-tests",
+    // The world is in its own test package, so the `wasi:crypto` interfaces
+    // it imports need bindings generated explicitly.
+    generate_all,
 });
 
+// This component covers the `kx` interface.
 #[cfg(test)]
 mod tests {
-    use crate::wasi::crypto::wasi_ephemeral_crypto_asymmetric_common::{
-        AlgorithmType, KeypairEncoding, PublickeyEncoding, SecretkeyEncoding, keypair_export,
-        keypair_generate, keypair_publickey, keypair_secretkey, publickey_export, publickey_import,
-        publickey_verify, secretkey_export, secretkey_import,
+    use crate::wasi::crypto::common::{
+        ArrayOutput, CryptoErrno, KeypairEncoding, PublickeyEncoding, SecretkeyEncoding,
     };
-    use crate::wasi::crypto::wasi_ephemeral_crypto_common::{CryptoErrno, array_output_pull};
-    use crate::wasi::crypto::wasi_ephemeral_crypto_kx::{kx_decapsulate, kx_dh, kx_encapsulate};
+    use crate::wasi::crypto::kx::{KxKeypair, KxOptions, KxPublickey, KxSecretkey};
+
+    // ── options ───────────────────────────────────────────────────────────────
+
+    #[test]
+    fn options_open_drop_key_exchange() {
+        let opts = KxOptions::new();
+        drop(opts);
+    }
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    fn generate_kp(
-        alg: &str,
-    ) -> (
-        crate::wasi::crypto::wasi_ephemeral_crypto_common::Keypair,
-        crate::wasi::crypto::wasi_ephemeral_crypto_common::Publickey,
-        crate::wasi::crypto::wasi_ephemeral_crypto_common::Secretkey,
-    ) {
-        let kp = keypair_generate(AlgorithmType::KeyExchange, alg, None)
-            .unwrap_or_else(|e| panic!("keypair_generate({alg}) failed: {e:?}"));
-        let pk = keypair_publickey(&kp)
-            .unwrap_or_else(|e| panic!("keypair_publickey({alg}) failed: {e:?}"));
-        let sk = keypair_secretkey(&kp)
-            .unwrap_or_else(|e| panic!("keypair_secretkey({alg}) failed: {e:?}"));
+    fn generate_kp(alg: &str) -> (KxKeypair, KxPublickey, KxSecretkey) {
+        let kp = KxKeypair::generate(alg, None)
+            .unwrap_or_else(|e| panic!("KxKeypair::generate({alg}) failed: {e:?}"));
+        let pk = kp
+            .publickey()
+            .unwrap_or_else(|e| panic!("KxKeypair::publickey({alg}) failed: {e:?}"));
+        let sk = kp
+            .secretkey()
+            .unwrap_or_else(|e| panic!("KxKeypair::secretkey({alg}) failed: {e:?}"));
         (kp, pk, sk)
     }
 
@@ -49,8 +56,8 @@ mod tests {
         let (kp1, pk1, sk1) = generate_kp("X25519");
         let (kp2, pk2, sk2) = generate_kp("X25519");
 
-        let ss1 = array_output_pull(kx_dh(&pk2, &sk1).unwrap()).unwrap();
-        let ss2 = array_output_pull(kx_dh(&pk1, &sk2).unwrap()).unwrap();
+        let ss1 = ArrayOutput::pull(sk1.dh(&pk2).unwrap()).unwrap();
+        let ss2 = ArrayOutput::pull(sk2.dh(&pk1).unwrap()).unwrap();
 
         assert_eq!(ss1, ss2, "DH shared secrets must be equal");
         assert_eq!(ss1.len(), 32, "X25519 shared secret is 32 bytes");
@@ -69,7 +76,7 @@ mod tests {
         // Since Kyber is the only other KX alg, and it does not support DH,
         // we test with an X25519 pk and an X25519 sk whose internal types differ.
         // The simplest portable check: wrong AlgorithmType for secretkey_import.
-        match keypair_generate(AlgorithmType::KeyExchange, "__not_a_real_algo__", None) {
+        match KxKeypair::generate("__not_a_real_algo__", None) {
             Err(CryptoErrno::UnsupportedAlgorithm) => {}
             Ok(kp) => {
                 drop(kp);
@@ -87,44 +94,30 @@ mod tests {
         let (kp, pk, sk) = generate_kp("X25519");
 
         // Export keypair as Raw, re-import, generate the same shared secret.
-        let kp_raw = array_output_pull(keypair_export(&kp, KeypairEncoding::Raw).unwrap()).unwrap();
+        let kp_raw = ArrayOutput::pull(kp.export(KeypairEncoding::Raw).unwrap()).unwrap();
         assert!(!kp_raw.is_empty());
 
         // Export public key as Raw, re-import.
-        let pk_raw =
-            array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
+        let pk_raw = ArrayOutput::pull(pk.export(PublickeyEncoding::Raw).unwrap()).unwrap();
         assert_eq!(pk_raw.len(), 32, "X25519 public key is 32 bytes");
-        let pk2 = publickey_import(
-            AlgorithmType::KeyExchange,
-            "X25519",
-            &pk_raw,
-            PublickeyEncoding::Raw,
-        )
-        .unwrap();
+        let pk2 = KxPublickey::import("X25519", &pk_raw, PublickeyEncoding::Raw).unwrap();
 
         // Export secret key as Raw, re-import.
-        let sk_raw =
-            array_output_pull(secretkey_export(&sk, SecretkeyEncoding::Raw).unwrap()).unwrap();
+        let sk_raw = ArrayOutput::pull(sk.export(SecretkeyEncoding::Raw).unwrap()).unwrap();
         assert_eq!(sk_raw.len(), 32, "X25519 secret key is 32 bytes");
-        let sk2 = secretkey_import(
-            AlgorithmType::KeyExchange,
-            "X25519",
-            &sk_raw,
-            SecretkeyEncoding::Raw,
-        )
-        .unwrap();
+        let sk2 = KxSecretkey::import("X25519", &sk_raw, SecretkeyEncoding::Raw).unwrap();
 
         // Generate a second keypair and verify DH with re-imported keys gives same result.
         let (kp3, pk3, sk3) = generate_kp("X25519");
-        let ss_orig = array_output_pull(kx_dh(&pk3, &sk).unwrap()).unwrap();
-        let ss_reimport = array_output_pull(kx_dh(&pk3, &sk2).unwrap()).unwrap();
+        let ss_orig = ArrayOutput::pull(sk.dh(&pk3).unwrap()).unwrap();
+        let ss_reimport = ArrayOutput::pull(sk2.dh(&pk3).unwrap()).unwrap();
         assert_eq!(
             ss_orig, ss_reimport,
             "re-imported secret key must produce same DH result"
         );
 
-        let ss_orig2 = array_output_pull(kx_dh(&pk, &sk3).unwrap()).unwrap();
-        let ss_reimport2 = array_output_pull(kx_dh(&pk2, &sk3).unwrap()).unwrap();
+        let ss_orig2 = ArrayOutput::pull(sk3.dh(&pk).unwrap()).unwrap();
+        let ss_reimport2 = ArrayOutput::pull(sk3.dh(&pk2).unwrap()).unwrap();
         assert_eq!(
             ss_orig2, ss_reimport2,
             "re-imported public key must produce same DH result"
@@ -146,7 +139,7 @@ mod tests {
     #[test]
     fn x25519_publickey_verify_valid_key() {
         let (kp, pk, sk) = generate_kp("X25519");
-        publickey_verify(&pk).unwrap();
+        pk.verify().unwrap();
         drop(kp);
         drop(pk);
         drop(sk);
@@ -155,15 +148,9 @@ mod tests {
     #[test]
     fn x25519_publickey_verify_low_order_point_fails() {
         // The all-zero public key is the canonical low-order point for X25519
-        // and must be rejected by publickey_verify.
-        let zero_pk = publickey_import(
-            AlgorithmType::KeyExchange,
-            "X25519",
-            &[0u8; 32],
-            PublickeyEncoding::Raw,
-        )
-        .unwrap();
-        match publickey_verify(&zero_pk) {
+        // and must be rejected by KxPublickey::verify.
+        let zero_pk = KxPublickey::import("X25519", &[0u8; 32], PublickeyEncoding::Raw).unwrap();
+        match zero_pk.verify() {
             Err(CryptoErrno::InvalidKey) => {}
             Ok(()) => panic!("low-order/zero public key should be rejected"),
             Err(e) => panic!("unexpected error: {e:?}"),
@@ -178,17 +165,15 @@ mod tests {
     fn kem_round_trip(alg: &str) -> (Vec<u8>, usize, usize, usize, usize) {
         let (kp, pk, sk) = generate_kp(alg);
 
-        let pk_raw =
-            array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
-        let sk_raw =
-            array_output_pull(secretkey_export(&sk, SecretkeyEncoding::Raw).unwrap()).unwrap();
+        let pk_raw = ArrayOutput::pull(pk.export(PublickeyEncoding::Raw).unwrap()).unwrap();
+        let sk_raw = ArrayOutput::pull(sk.export(SecretkeyEncoding::Raw).unwrap()).unwrap();
 
-        let (secret_ao, encapsulated_ao) = kx_encapsulate(&pk).unwrap();
-        let secret = array_output_pull(secret_ao).unwrap();
-        let encapsulated = array_output_pull(encapsulated_ao).unwrap();
+        let (secret_ao, encapsulated_ao) = pk.encapsulate().unwrap();
+        let secret = ArrayOutput::pull(secret_ao).unwrap();
+        let encapsulated = ArrayOutput::pull(encapsulated_ao).unwrap();
 
-        let decapsulated_ao = kx_decapsulate(&sk, &encapsulated).unwrap();
-        let decapsulated = array_output_pull(decapsulated_ao).unwrap();
+        let decapsulated_ao = sk.decapsulate(&encapsulated).unwrap();
+        let decapsulated = ArrayOutput::pull(decapsulated_ao).unwrap();
 
         assert_eq!(
             secret, decapsulated,
@@ -261,8 +246,8 @@ mod tests {
         // keypairs and verify DH is symmetric.
         let (kp1, pk1, sk1) = generate_kp("X25519");
         let (kp2, pk2, sk2) = generate_kp("X25519");
-        let ss_fwd = array_output_pull(kx_dh(&pk2, &sk1).unwrap()).unwrap();
-        let ss_rev = array_output_pull(kx_dh(&pk1, &sk2).unwrap()).unwrap();
+        let ss_fwd = ArrayOutput::pull(sk1.dh(&pk2).unwrap()).unwrap();
+        let ss_rev = ArrayOutput::pull(sk2.dh(&pk1).unwrap()).unwrap();
         assert_eq!(ss_fwd, ss_rev);
         drop(kp1);
         drop(kp2);
@@ -274,12 +259,7 @@ mod tests {
 
     #[test]
     fn x25519_secretkey_import_wrong_size_returns_invalid_key() {
-        match secretkey_import(
-            AlgorithmType::KeyExchange,
-            "X25519",
-            &[0u8; 5],
-            SecretkeyEncoding::Raw,
-        ) {
+        match KxSecretkey::import("X25519", &[0u8; 5], SecretkeyEncoding::Raw) {
             Err(CryptoErrno::InvalidKey) => {}
             Ok(sk) => {
                 drop(sk);
@@ -298,37 +278,27 @@ mod tests {
         let (kp, pk, sk) = generate_kp(alg);
 
         // Export and re-import the encapsulation (public) key.
-        let pk_raw =
-            array_output_pull(publickey_export(&pk, PublickeyEncoding::Raw).unwrap()).unwrap();
-        let pk2 = publickey_import(
-            AlgorithmType::KeyExchange,
-            alg,
-            &pk_raw,
-            PublickeyEncoding::Raw,
-        )
-        .unwrap_or_else(|e| panic!("{alg}: publickey_import failed: {e:?}"));
+        let pk_raw = ArrayOutput::pull(pk.export(PublickeyEncoding::Raw).unwrap()).unwrap();
+        let pk2 = KxPublickey::import(alg, &pk_raw, PublickeyEncoding::Raw)
+            .unwrap_or_else(|e| panic!("{alg}: KxPublickey::import failed: {e:?}"));
 
         // Export and re-import the decapsulation (secret) key.
-        let sk_raw =
-            array_output_pull(secretkey_export(&sk, SecretkeyEncoding::Raw).unwrap()).unwrap();
-        let sk2 = secretkey_import(
-            AlgorithmType::KeyExchange,
-            alg,
-            &sk_raw,
-            SecretkeyEncoding::Raw,
-        )
-        .unwrap_or_else(|e| panic!("{alg}: secretkey_import failed: {e:?}"));
+        let sk_raw = ArrayOutput::pull(sk.export(SecretkeyEncoding::Raw).unwrap()).unwrap();
+        let sk2 = KxSecretkey::import(alg, &sk_raw, SecretkeyEncoding::Raw)
+            .unwrap_or_else(|e| panic!("{alg}: KxSecretkey::import failed: {e:?}"));
 
         // Encapsulate to the re-imported public key; decapsulate with the
         // re-imported secret key. The shared secrets must agree.
-        let (secret_ao, ct_ao) = kx_encapsulate(&pk2)
-            .unwrap_or_else(|e| panic!("{alg}: kx_encapsulate (re-imported pk) failed: {e:?}"));
-        let secret = array_output_pull(secret_ao).unwrap();
-        let ct = array_output_pull(ct_ao).unwrap();
+        let (secret_ao, ct_ao) = pk2.encapsulate().unwrap_or_else(|e| {
+            panic!("{alg}: KxPublickey::encapsulate (re-imported pk) failed: {e:?}")
+        });
+        let secret = ArrayOutput::pull(secret_ao).unwrap();
+        let ct = ArrayOutput::pull(ct_ao).unwrap();
 
-        let dec_ao = kx_decapsulate(&sk2, &ct)
-            .unwrap_or_else(|e| panic!("{alg}: kx_decapsulate (re-imported sk) failed: {e:?}"));
-        let decapsulated = array_output_pull(dec_ao).unwrap();
+        let dec_ao = sk2.decapsulate(&ct).unwrap_or_else(|e| {
+            panic!("{alg}: KxSecretkey::decapsulate (re-imported sk) failed: {e:?}")
+        });
+        let decapsulated = ArrayOutput::pull(dec_ao).unwrap();
 
         assert_eq!(
             secret, decapsulated,
@@ -360,5 +330,40 @@ mod tests {
     #[test]
     fn xwing_keypair_export_import_round_trip() {
         kem_export_import_round_trip("X-WING");
+    }
+
+    // ── key pair import / assembly (not implemented) ─────────────────────────
+    //
+    // Moved from the retired `wasi-crypto-asymmetric-common` component, whose
+    // generic key functions now exist per family.
+
+    #[test]
+    fn keypair_import_kx_not_implemented_returns_error() {
+        match KxKeypair::import("X25519", &[0u8; 64], KeypairEncoding::Raw) {
+            Err(CryptoErrno::InvalidOperation) | Err(CryptoErrno::NotImplemented) => {}
+            Ok(kp) => {
+                drop(kp);
+                panic!("KxKeypair::import should not be implemented");
+            }
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+    }
+
+    #[test]
+    fn keypair_from_pk_and_sk_same_alg_not_implemented() {
+        let (kp, pk, sk) = generate_kp("X25519");
+
+        match KxKeypair::from_pk_and_sk(&pk, &sk) {
+            Err(CryptoErrno::NotImplemented) => {}
+            Ok(kp2) => {
+                drop(kp2);
+                panic!("KxKeypair::from_pk_and_sk should return NotImplemented");
+            }
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+
+        drop(kp);
+        drop(pk);
+        drop(sk);
     }
 }
