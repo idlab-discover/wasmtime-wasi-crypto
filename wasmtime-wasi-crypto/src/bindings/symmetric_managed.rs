@@ -27,9 +27,12 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn replace_managed(
         &mut self,
         _secrets_manager: Resource<SecretsManager>,
-        _symmetric_key_old: Resource<SymmetricKey>,
+        symmetric_key_old: Resource<SymmetricKey>,
         _symmetric_key_new: Resource<SymmetricKey>,
     ) -> CryptoResult<Version> {
+        // `symmetric-key-old` is passed by ownership, so the host must drop it
+        // even though the replacement fails; otherwise its table entry would leak.
+        self.table.delete(symmetric_key_old)?;
         Err(CryptoErrno::UnsupportedFeature.into())
     }
 

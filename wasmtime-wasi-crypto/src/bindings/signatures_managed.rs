@@ -27,9 +27,12 @@ impl Host for crate::crypto::WasiCryptoCtxView<'_> {
     fn replace_managed(
         &mut self,
         _secrets_manager: Resource<SecretsManager>,
-        _kp_old: Resource<SignatureKeypair>,
+        kp_old: Resource<SignatureKeypair>,
         _kp_new: Resource<SignatureKeypair>,
     ) -> CryptoResult<Version> {
+        // `kp-old` is passed by ownership, so the host must drop it even though
+        // the replacement fails; otherwise its table entry would leak.
+        self.table.delete(kp_old)?;
         Err(CryptoErrno::UnsupportedFeature.into())
     }
 
