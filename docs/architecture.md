@@ -9,7 +9,7 @@ spec/wit/                        WIT interface definitions (source of truth for 
 bindings/mod.rs                  bindgen! invocation; maps WIT resources to Rust types
     │
     ▼
-bindings/{common,symmetric,      Host trait implementations — the actual logic
+bindings/{common,symmetric,      Host trait implementations; the actual logic
          signatures,kx,...}.rs
     │
     ▼

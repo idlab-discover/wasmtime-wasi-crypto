@@ -24,7 +24,7 @@ The `.cargo/config.toml` runner dispatches automatically to `wasmtime-host test`
 | ------------------------------------ | ----------------------------------------------------------------------------------------------- |
 | Pass                                 | Feature implemented and working                                                                 |
 | Pass, asserting `UnsupportedFeature` | Optional feature not implemented; the test checks for exactly `CryptoErrno::UnsupportedFeature` |
-| Fail — "not yet implemented"         | Host has a `todo!()` — incomplete implementation                                                |
+| Fail: "not yet implemented"          | Host has a `todo!()`: incomplete implementation                                                 |
 
 Optional features (secrets manager, managed keys) always return `UnsupportedFeature`, mirroring the WITX 0.10 reference implementation. Their tests accept exactly that error when opening a secrets manager, and only run the rest of their scenario once a secrets manager exists.
 

@@ -100,13 +100,15 @@ No options are currently supported. All `set` / `set-u64` calls return `Unsuppor
 
 ### Algorithms
 
-| Algorithm string | Enum variant | Type | Backing crate                                  |
-| ---------------- | ------------ | ---- | ---------------------------------------------- |
-| `X25519`         | `X25519`     | DH   | `ed25519-compact` (x25519 feature)             |
-| `KYBER-768`      | `Kyber768`   | KEM  | `pqcrypto-kyber` (optional feature `pqcrypto`) |
-| `KYBER-1024`     | `Kyber1024`  | KEM  | `pqcrypto-kyber` (optional feature `pqcrypto`) |
+| Algorithm string | Enum variant | Type | Backing crate                          |
+| ---------------- | ------------ | ---- | -------------------------------------- |
+| `X25519`         | `X25519`     | DH   | `ed25519-compact` (x25519 feature)     |
+| `ML-KEM-512`     | `MlKem512`   | KEM  | `ml-kem` (optional feature `pqcrypto`) |
+| `ML-KEM-768`     | `MlKem768`   | KEM  | `ml-kem` (optional feature `pqcrypto`) |
+| `ML-KEM-1024`    | `MlKem1024`  | KEM  | `ml-kem` (optional feature `pqcrypto`) |
+| `X-WING`         | `XWing`      | KEM  | `x-wing` (optional feature `pqcrypto`) |
 
-Kyber is behind the `pqcrypto` Cargo feature, which is enabled by default.
+ML-KEM and X-Wing are behind the `pqcrypto` Cargo feature, which is enabled by default.
 
 ### Key types
 
@@ -173,7 +175,7 @@ Each test component declares a world that imports only the interfaces it tests, 
 | `symmetric-managed`  | `wasi-crypto-symmetric`       | Partial | `id` of an unmanaged key returns `UnsupportedFeature`; the other managed-key scenarios only run once a secrets manager exists                                                                                                                              |
 | `signatures`         | `wasi-crypto-signatures`      | Partial | options; Ed25519, ECDSA P256/K256/P384, RSA PKCS1/PSS covered; key import/export round trips and errors; `signature-secretkey.import` expects `NotImplemented`                                                                                             |
 | `signatures-managed` | `wasi-crypto-signatures`      | Partial | the managed-keypair scenario only runs once a secrets manager exists                                                                                                                                                                                       |
-| `kx`                 | `wasi-crypto-kx`              | Partial | options; X25519 DH, key round-trips, low-order point rejection; ML-KEM and X-Wing encapsulation and key round-trips; `kx-keypair.import` and `from-pk-and-sk` expect not-implemented errors, or `IncompatibleKeys` for mismatched algorithms               |
+| `kx`                 | `wasi-crypto-kx`              | Partial | options; X25519 DH, key round-trips, low-order point rejection; ML-KEM and X-Wing encapsulation and key round-trips; `IncompatibleKeys` for mismatched algorithms in `dh` and `from-pk-and-sk`; `kx-keypair.import` and `from-pk-and-sk` not implemented   |
 | `kx-managed`         | /                             | Missing | not yet written                                                                                                                                                                                                                                            |
 | `symmetric`          | `wasi-crypto-in-place`        | Partial | guest-memory regression tests: plain encrypt/decrypt (AEADs, Xoodyak) allocate a separate output buffer, measured via `allocation-counter` and `memory.size`; `in_place` helpers write the result over the input with no guest allocation or memory growth |
 | `symmetric`          | native: `symmetric/tests.rs`  | Partial | AEADs only (AES-GCM, (X)ChaCha20-Poly1305, Xoodyak): `insta` known-answer snapshots of ciphertext and tags, round-trip and tampered-tag checks, and host allocation counts per encrypt/decrypt operation                                                   |
@@ -183,7 +185,7 @@ Each test component declares a world that imports only the interfaces it tests, 
 
 - Pass: feature implemented and working.
 - Pass, asserting `UnsupportedFeature`: optional feature not implemented; the test checks for exactly that error. `#[should_panic]` doesn't work for this: on `wasm32-wasip2`, libtest ignores such tests without running them, and the runner reports the ignored test as passed.
-- Host `todo!()`: incomplete implementation — test fails with "Host implementation feature not yet implemented".
+- Host `todo!()`: incomplete implementation; the test fails with "Host implementation feature not yet implemented".
 
 **Native host tests:** `wasmtime-wasi-crypto` also has ordinary unit tests (`cargo test -p wasmtime-wasi-crypto`) that call the host implementation directly, without a guest. They cover what a component test can't observe, such as exact output bytes (`insta` snapshots, reviewed with `cargo insta review`) and host allocations.
 

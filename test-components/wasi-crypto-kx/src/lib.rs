@@ -71,11 +71,7 @@ mod tests {
     }
 
     #[test]
-    fn x25519_dh_incompatible_key_types_error() {
-        // DH with keys from two different algorithms must fail.
-        // Since Kyber is the only other KX alg, and it does not support DH,
-        // we test with an X25519 pk and an X25519 sk whose internal types differ.
-        // The simplest portable check: wrong AlgorithmType for secretkey_import.
+    fn keypair_generate_unknown_algorithm_returns_unsupported_algorithm() {
         match KxKeypair::generate("__not_a_real_algo__", None) {
             Err(CryptoErrno::UnsupportedAlgorithm) => {}
             Ok(kp) => {
@@ -199,7 +195,7 @@ mod tests {
         let (_ss, pk_len, sk_len, ct_len, ss_len) = kem_round_trip("ML-KEM-512");
         println!("{pk_len}, {sk_len}, {ct_len}, {ss_len}");
         assert_eq!(pk_len, 800, "ML-KEM-512 public key size");
-        assert_eq!(sk_len, 64, "ML-KEM-512 secret key seed size"); // Secrek key size expanded: 1632
+        assert_eq!(sk_len, 64, "ML-KEM-512 secret key seed size"); // Secret key size expanded: 1632
         assert_eq!(ct_len, 768, "ML-KEM-512 ciphertext size");
         assert_eq!(ss_len, 32, "ML-KEM-512 shared secret size");
     }
@@ -235,26 +231,24 @@ mod tests {
 
     #[test]
     fn x25519_dh_mismatched_key_algorithms_returns_incompatible_keys() {
-        // Construct two X25519 keypairs; then create a fake scenario by importing
-        // a valid sk from kp1 as X25519 and a valid pk from kp2 as X25519 — DH
-        // must succeed since both are X25519. But if we pass the sk's publickey
-        // as the DH target instead of the peer's public key the result will differ;
-        // just confirm the mismatch detection path: passing an X25519 sk with an
-        // X25519 pk from a different keypair still works (no IncompatibleKeys).
-        // The real incompatible-keys path fires when algorithm types differ.
-        // Since ML-KEM / X-Wing don't support DH, we generate two X25519
-        // keypairs and verify DH is symmetric.
-        let (kp1, pk1, sk1) = generate_kp("X25519");
-        let (kp2, pk2, sk2) = generate_kp("X25519");
-        let ss_fwd = ArrayOutput::pull(sk1.dh(&pk2).unwrap()).unwrap();
-        let ss_rev = ArrayOutput::pull(sk2.dh(&pk1).unwrap()).unwrap();
-        assert_eq!(ss_fwd, ss_rev);
-        drop(kp1);
-        drop(kp2);
-        drop(pk1);
-        drop(pk2);
-        drop(sk1);
-        drop(sk2);
+        let (kp_x25519, pk_x25519, sk_x25519) = generate_kp("X25519");
+        let (kp_ml_kem, pk_ml_kem, sk_ml_kem) = generate_kp("ML-KEM-768");
+
+        match sk_x25519.dh(&pk_ml_kem) {
+            Err(CryptoErrno::IncompatibleKeys) => {}
+            Ok(shared_secret) => {
+                drop(shared_secret);
+                panic!("DH with mismatched algorithms should return IncompatibleKeys");
+            }
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+
+        drop(kp_x25519);
+        drop(kp_ml_kem);
+        drop(pk_x25519);
+        drop(pk_ml_kem);
+        drop(sk_x25519);
+        drop(sk_ml_kem);
     }
 
     #[test]
