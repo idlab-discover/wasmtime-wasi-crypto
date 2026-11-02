@@ -366,4 +366,26 @@ mod tests {
         drop(pk);
         drop(sk);
     }
+
+    #[test]
+    fn keypair_from_pk_and_sk_mismatched_alg_returns_incompatible_keys() {
+        let (kp_x25519, pk_x25519, sk_x25519) = generate_kp("X25519");
+        let (kp_ml_kem, pk_ml_kem, sk_ml_kem) = generate_kp("ML-KEM-768");
+
+        match KxKeypair::from_pk_and_sk(&pk_x25519, &sk_ml_kem) {
+            Err(CryptoErrno::IncompatibleKeys) => {}
+            Ok(kp) => {
+                drop(kp);
+                panic!("mismatched algorithms should return IncompatibleKeys");
+            }
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+
+        drop(kp_x25519);
+        drop(kp_ml_kem);
+        drop(pk_x25519);
+        drop(pk_ml_kem);
+        drop(sk_x25519);
+        drop(sk_ml_kem);
+    }
 }
