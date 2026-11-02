@@ -73,6 +73,7 @@ Because a component can only have one `cabi_import_realloc`, this fix is a guest
 **Host side.** What the host allocates while it encrypts or decrypts is described in [Symmetric encryption buffers](#symmetric-encryption-buffers-symmetric) below.
 
 **Long-term options.** Both would let the guest supply the output buffer without the `realloc` trick:
+
 - the Lazy ABI, with caller-supplied buffers
 - a writable-buffer WIT type ([component-model #369](https://github.com/WebAssembly/component-model/issues/369))
 
@@ -82,12 +83,12 @@ The overall problem is tracked in [wasi-crypto #95](https://github.com/WebAssemb
 
 The four encryption functions (`symmetric-state-encrypt`, `-encrypt-detached`, `-decrypt` and `-decrypt-detached`) take their input as a `list<u8>`. Wasmtime lifts that list into an owned `Vec<u8>`, allocated with a capacity equal to its length, and hands it to the host. The `SymmetricStateLike` encrypt and decrypt methods take that `Vec` by value, and each AEAD (AES-GCM, ChaCha20-Poly1305, XChaCha20-Poly1305 and Xoodyak) encrypts or decrypts in it and returns the same buffer as its output.
 
-| Operation            | Message-sized host allocations | Why                                                                     |
-| -------------------- | ------------------------------ | ----------------------------------------------------------------------- |
-| `encrypt`            | 1                              | Appending the tag grows the lifted buffer, which has no spare capacity. |
-| `encrypt-detached`   | 0                              | The ciphertext is the input buffer; the tag is separate.                |
-| `decrypt`            | 0                              | The tag is split off the end, and the rest is decrypted in place.       |
-| `decrypt-detached`   | 0                              | The input buffer is decrypted in place.                                 |
+| Operation          | Message-sized host allocations | Why                                                                     |
+| ------------------ | ------------------------------ | ----------------------------------------------------------------------- |
+| `encrypt`          | 1                              | Appending the tag grows the lifted buffer, which has no spare capacity. |
+| `encrypt-detached` | 0                              | The ciphertext is the input buffer; the tag is separate.                |
+| `decrypt`          | 0                              | The tag is split off the end, and the rest is decrypted in place.       |
+| `decrypt-detached` | 0                              | The input buffer is decrypted in place.                                 |
 
 Besides these, a few tag-sized allocations remain: the buffer inside the `SymmetricTag` that both encrypt variants produce, and the tag that `decrypt` splits off its input.
 

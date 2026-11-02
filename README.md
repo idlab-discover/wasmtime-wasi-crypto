@@ -22,6 +22,7 @@ cargo test -p wasi-crypto-symmetric --target wasm32-wasip2
 cargo test -p wasi-crypto-signatures --target wasm32-wasip2
 cargo test -p wasi-crypto-kx --target wasm32-wasip2
 cargo test -p wasi-crypto-asymmetric-common --target wasm32-wasip2
+cargo test -p wasi-crypto-in-place --target wasm32-wasip2
 ```
 
 The `.cargo/config.toml` runner wires `cargo test --target wasm32-wasip2` to `wasmtime-host test` automatically.

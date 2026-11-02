@@ -11,19 +11,22 @@ cargo test -p wasi-crypto-symmetric --target wasm32-wasip2
 cargo test -p wasi-crypto-signatures --target wasm32-wasip2
 cargo test -p wasi-crypto-kx --target wasm32-wasip2
 cargo test -p wasi-crypto-asymmetric-common --target wasm32-wasip2
+cargo test -p wasi-crypto-in-place --target wasm32-wasip2
 ```
 
 The `.cargo/config.toml` runner dispatches automatically to `wasmtime-host test`.
 
 ## Test behavior
 
-| Outcome                      | Meaning                                                                                                                |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Pass                         | Feature implemented and working                                                                                        |
-| `#[should_panic]`            | Optional feature not implemented; host returns `CryptoErrno::UnsupportedFeature`, guest `.unwrap()` panics as expected |
-| Fail — "not yet implemented" | Host has a `todo!()` — incomplete implementation                                                                       |
+| Outcome                              | Meaning                                                                                         |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| Pass                                 | Feature implemented and working                                                                 |
+| Pass, asserting `UnsupportedFeature` | Optional feature not implemented; the test checks for exactly `CryptoErrno::UnsupportedFeature` |
+| Fail — "not yet implemented"         | Host has a `todo!()` — incomplete implementation                                                |
 
-Optional features (secrets manager, managed keys) always return `UnsupportedFeature`, mirroring the WITX 0.10 reference implementation. Their tests are marked `#[should_panic]` and are expected to fail until the feature is implemented.
+Optional features (secrets manager, managed keys) always return `UnsupportedFeature`, mirroring the WITX 0.10 reference implementation. Their tests accept exactly that error when opening a secrets manager, and only run the rest of their scenario once a secrets manager exists.
+
+`#[should_panic]` can't express an expected failure here: on `wasm32-wasip2`, libtest ignores `should_panic` tests without running them, and the runner reports any test the guest ignores as passed.
 
 ## Coverage
 
